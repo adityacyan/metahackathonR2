@@ -7,11 +7,15 @@
 """
 Reward calculation for the API Conformance Gym environment.
 
-Implements the reward formula: R = (V × 0.6) + (B × 0.4) - (E × 0.2)
+Primary reward is trajectory-aware shaping:
+    R = (0.45 * Q) + (0.35 * T) + (0.20 * P) - K
 where:
-  V = Validity Score (0.0-1.0)
-  B = Best Practices Score (0.0-1.0)
-  E = Normalized Error Count (0.0-1.0)
+    Q = Global schema quality from validator scores
+    T = Active task grader score
+    P = Positive progress delta over prior step
+    K = Explicit behavior penalty
+
+The static validity/best-practices/error formula is retained as a legacy helper.
 """
 
 try:
@@ -41,7 +45,7 @@ class RewardCalculator:
 
     @staticmethod
     def calculate(validation_result: ValidationResult) -> float:
-        """Calculate reward using the formula: R = (V × 0.6) + (B × 0.4) - (E × 0.2)
+        """Legacy static reward helper for compatibility.
 
         Args:
             validation_result: ValidationResult from the validation pipeline

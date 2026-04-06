@@ -64,7 +64,7 @@ class APIEnvironment(Environment):
     Features:
     - Multi-turn schema improvement
     - Comprehensive validation pipeline (JSON, OpenAPI, Auth, Best Practices)
-    - Server-side reward calculation: R = (V × 0.6) + (B × 0.4) - (E × 0.2)
+    - Server-side trajectory-aware reward shaping with task progression penalties
     - Episode termination on max iterations or perfect schema
     - Complete state history tracking
 
