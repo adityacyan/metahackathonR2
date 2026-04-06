@@ -151,6 +151,20 @@ export IMAGE_NAME="api-conformance-gym:latest"
 python inference.py
 ```
 
+Run baseline inside Docker with runtime environment variable injection (PowerShell):
+
+```powershell
+docker build -t api-conformance-gym:local .
+
+docker run --rm -it `
+    -e API_BASE_URL="https://router.huggingface.co/v1" `
+    -e MODEL_NAME="Qwen/Qwen2.5-72B-Instruct" `
+    -e HF_TOKEN="hf_xxx" `
+    -e ENV_SERVER_URL="http://host.docker.internal:8000" `
+    api-conformance-gym:local `
+    python inference.py
+```
+
 Expected output format:
 ```
 [START] task=api-design env=api_conformance_gym model=Qwen2.5-72B-Instruct

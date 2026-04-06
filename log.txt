@@ -1,313 +1,572 @@
-[2026-04-05T18:00:55.874974Z] run_start task=api-design env=api_conformance_gym model=Qwen/Qwen2.5-Coder-3B-Instruct:nscale episodes=3
+[2026-04-06T17:47:42.684731Z] run_start task=api-design env=api_conformance_gym model=Qwen/Qwen2.5-Coder-3B-Instruct:nscale episodes=3
 
-[2026-04-05T18:01:14.355509Z] step=1 source=llm;episode=1;task=Basic API Structure reward=0.984 done=true
-{
-  "schemas": {
-    "Product": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "example": "prod-123"
-        },
-        "name": {
-          "type": "string",
-          "example": "Laptop"
-        },
-        "price": {
-          "type": "number",
-          "example": 999.99
-        },
-        "stock": {
-          "type": "integer",
-          "example": 50
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "price",
-        "stock"
-      ]
-    },
-    "CartItem": {
-      "type": "object",
-      "properties": {
-        "productId": {
-          "type": "string",
-          "example": "prod-123"
-        },
-        "quantity": {
-          "type": "integer",
-          "example": 2
-        }
-      },
-      "required": [
-        "productId",
-        "quantity"
-      ]
-    },
-    "PaymentRequest": {
-      "type": "object",
-      "properties": {
-        "amount": {
-          "type": "number",
-          "example": 999.99
-        },
-        "cardNumber": {
-          "type": "string",
-          "example": "1234-5678-9012-3456"
-        },
-        "expiryDate": {
-          "type": "string",
-          "format": "date-time",
-          "example": "2023-12-31T23:59:59Z"
-        },
-        "cvv": {
-          "type": "string",
-          "example": "123"
-        }
-      },
-      "required": [
-        "amount",
-        "cardNumber",
-        "expiryDate",
-        "cvv"
-      ]
-    },
-    "PaymentResponse": {
-      "type": "object",
-      "properties": {
-        "transactionId": {
-          "type": "string",
-          "example": "txn-12345"
-        },
-        "status": {
-          "type": "string",
-          "enum": [
-            "success",
-            "failed"
-          ],
-          "example": "success"
-        }
-      },
-      "required": [
-        "transactionId",
-        "status"
-      ]
-    },
-    "Order": {
-      "type": "object",
-      "properties": {
-        "orderId": {
-          "type": "string",
-          "example": "order-123"
-        },
-        "userId": {
-          "type": "string",
-          "example": "user-123"
-        },
-        "products": {
-          "type": "array",
-          "items": {
-            "$ref": "#/components/schemas/OrderProduct"
-          }
-        },
-        "totalAmount": {
-          "type": "number",
-          "example": 999.99
-        },
-        "status": {
-          "type": "string",
-          "enum": [
-            "pending",
-            "processing",
-            "completed",
-            "cancelled"
-          ],
-          "example": "pending"
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "example": "2023-10-01T12:34:56Z"
-        }
-      },
-      "required": [
-        "orderId",
-        "userId",
-        "products",
-        "totalAmount",
-        "status",
-        "createdAt"
-      ]
-    },
-    "OrderProduct": {
-      "type": "object",
-      "properties": {
-        "productId": {
-          "type": "string",
-          "example": "prod-123"
-        },
-        "quantity": {
-          "type": "integer",
-          "example": 2
-        },
-        "price": {
-          "type": "number",
-          "example": 999.99
-        }
-      },
-      "required": [
-        "productId",
-        "quantity",
-        "price"
-      ]
-    }
-  },
-  "securitySchemes": {
-    "bearerAuth": {
-      "type": "http",
-      "scheme": "bearer"
-    }
-  }
-}
-
-[2026-04-05T18:01:26.616497Z] step=1 source=llm;episode=2;task=Security & Authentication reward=0.984 done=true
-{
-  "schemas": {
-    "Account": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Account ID"
-        },
-        "balance": {
-          "type": "number",
-          "description": "Account balance"
-        },
-        "owner": {
-          "type": "string",
-          "description": "Account owner"
-        }
-      },
-      "required": [
-        "id",
-        "balance",
-        "owner"
-      ]
-    },
-    "NewAccount": {
-      "type": "object",
-      "properties": {
-        "owner": {
-          "type": "string",
-          "description": "Account owner"
-        },
-        "initialBalance": {
-          "type": "number",
-          "description": "Initial balance"
-        }
-      },
-      "required": [
-        "owner",
-        "initialBalance"
-      ]
-    },
-    "TransferRequest": {
-      "type": "object",
-      "properties": {
-        "fromAccountId": {
-          "type": "string",
-          "description": "Source account ID"
-        },
-        "toAccountId": {
-          "type": "string",
-          "description": "Destination account ID"
-        },
-        "amount": {
-          "type": "number",
-          "description": "Amount to transfer"
-        }
-      },
-      "required": [
-        "fromAccountId",
-        "toAccountId",
-        "amount"
-      ]
-    },
-    "TransferResponse": {
-      "type": "object",
-      "properties": {
-        "status": {
-          "type": "string",
-          "description": "Transfer status"
-        },
-        "message": {
-          "type": "string",
-          "description": "Transfer message"
-        }
-      },
-      "required": [
-        "status",
-        "message"
-      ]
-    },
-    "FraudDetectionRequest": {
-      "type": "object",
-      "properties": {
-        "transactionId": {
-          "type": "string",
-          "description": "Transaction ID"
-        },
-        "amount": {
-          "type": "number",
-          "description": "Transaction amount"
-        }
-      },
-      "required": [
-        "transactionId",
-        "amount"
-      ]
-    },
-    "FraudDetectionResponse": {
-      "type": "object",
-      "properties": {
-        "isFraudulent": {
-          "type": "boolean",
-          "description": "Indicates if the transaction is fraudulent"
-        },
-        "reason": {
-          "type": "string",
-          "description": "Reason for fraud detection"
-        }
-      },
-      "required": [
-        "isFraudulent",
-        "reason"
-      ]
-    }
-  },
-  "securitySchemes": {
-    "bearerAuth": {
-      "type": "http",
-      "scheme": "bearer"
-    }
-  }
-}
-
-[2026-04-05T18:01:38.499473Z] step=1 source=llm;episode=3;task=Advanced Best Practices reward=1.000 done=true
+[2026-04-06T17:48:01.464861Z] step=1 source=llm;episode=1;task=Basic API Structure reward=0.992 done=true
 {
   "schemas": {
     "User": {
       "type": "object",
       "properties": {
         "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "username": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 50
+        },
+        "email": {
+          "type": "string",
+          "format": "email"
+        },
+        "password": {
+          "type": "string",
+          "minLength": 8
+        }
+      },
+      "required": [
+        "username",
+        "email",
+        "password"
+      ]
+    },
+    "Book": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 5
+        },
+        "author": {
+          "type": "string",
+          "minLength": 3
+        },
+        "isbn": {
+          "type": "string",
+          "minLength": 10
+        },
+        "available": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "title",
+        "author",
+        "isbn",
+        "available"
+      ]
+    },
+    "BorrowingRequest": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "bookId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "expectedReturnDate": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "bookId",
+        "expectedReturnDate"
+      ]
+    },
+    "Borrowing": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "userId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "bookId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "borrowedDate": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expectedReturnDate": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "returnedDate": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "bookId",
+        "borrowedDate",
+        "expectedReturnDate"
+      ]
+    },
+    "OverdueNotification": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "userId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "bookTitle": {
+          "type": "string"
+        },
+        "notificationDate": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "bookTitle",
+        "notificationDate"
+      ]
+    }
+  },
+  "securitySchemes": {
+    "bearerAuth": {
+      "type": "http",
+      "scheme": "bearer"
+    }
+  }
+}
+
+[2026-04-06T17:48:14.024803Z] step=1 source=llm;episode=2;task=Security & Authentication reward=0.968 done=false
+{
+  "schemas": {
+    "Content": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Content ID"
+        },
+        "text": {
+          "type": "string",
+          "description": "Content text"
+        },
+        "classification": {
+          "type": "string",
+          "description": "Content classification (e.g., safe, flagged)"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Content creation date"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "classification",
+        "created_at"
+      ]
+    },
+    "User": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "User ID"
+        },
+        "username": {
+          "type": "string",
+          "description": "User username"
+        },
+        "email": {
+          "type": "string",
+          "description": "User email"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "User creation date"
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "email",
+        "created_at"
+      ]
+    },
+    "AuditTrail": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Audit trail ID"
+        },
+        "action": {
+          "type": "string",
+          "description": "Audit trail action (e.g., create, update, delete)"
+        },
+        "user_id": {
+          "type": "string",
+          "description": "User ID who performed the action"
+        },
+        "content_id": {
+          "type": "string",
+          "description": "Content ID affected by the action"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Audit trail timestamp"
+        }
+      },
+      "required": [
+        "id",
+        "action",
+        "user_id",
+        "content_id",
+        "timestamp"
+      ]
+    }
+  },
+  "securitySchemes": {
+    "bearerAuth": {
+      "type": "http",
+      "scheme": "bearer"
+    }
+  }
+}
+
+[2026-04-06T17:48:35.029076Z] step=2 source=llm;episode=2;task=Security & Authentication reward=0.750 done=true
+{
+  "schemas": {
+    "Content": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the content"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the content"
+        },
+        "body": {
+          "type": "string",
+          "description": "Body of the content"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "approved",
+            "rejected"
+          ],
+          "description": "Status of the content"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Date and time when the content was created"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Date and time when the content was last updated"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "body",
+        "status",
+        "created_at"
+      ]
+    },
+    "User": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user"
+        },
+        "username": {
+          "type": "string",
+          "description": "Username of the user"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Email address of the user"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "admin",
+            "moderator",
+            "user"
+          ],
+          "description": "Role of the user"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Date and time when the user was created"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Date and time when the user was last updated"
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "email",
+        "role",
+        "created_at"
+      ]
+    },
+    "AuditTrail": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the audit trail"
+        },
+        "action": {
+          "type": "string",
+          "description": "Action performed in the audit trail"
+        },
+        "user_id": {
+          "type": "string",
+          "description": "ID of the user who performed the action"
+        },
+        "content_id": {
+          "type": "string",
+          "description": "ID of the content associated with the action"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the audit trail entry"
+        }
+      },
+      "required": [
+        "id",
+        "action",
+        "user_id",
+        "content_id",
+        "timestamp"
+      ]
+    }
+  },
+  "securitySchemes": {
+    "bearerAuth": {
+      "type": "http",
+      "scheme": "bearer"
+    }
+  }
+}
+
+[2026-04-06T17:48:49.226065Z] step=1 source=llm;episode=3;task=Advanced Best Practices reward=0.955 done=false
+{
+  "schemas": {
+    "Property": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "title": {
+          "type": "string"
+        },
+        "address": {
+          "type": "string"
+        },
+        "price": {
+          "type": "number"
+        },
+        "images": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "agentId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "title",
+        "address",
+        "price",
+        "agentId"
+      ]
+    },
+    "Agent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string",
+          "format": "email"
+        },
+        "phone": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "email",
+        "phone"
+      ]
+    },
+    "Inquiry": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "propertyId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "agentId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "propertyId",
+        "agentId",
+        "message"
+      ]
+    },
+    "MarketAnalytics": {
+      "type": "object",
+      "properties": {
+        "totalProperties": {
+          "type": "integer"
+        },
+        "averagePrice": {
+          "type": "number"
+        },
+        "topAgents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "agentId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "totalProperties": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "securitySchemes": {
+    "bearerAuth": {
+      "type": "http",
+      "scheme": "bearer"
+    }
+  }
+}
+
+[2026-04-06T17:49:06.426817Z] step=2 source=llm;episode=3;task=Advanced Best Practices reward=0.721 done=true
+{
+  "schemas": {
+    "Property": {
+      "type": "object",
+      "properties": {
+        "id": {
           "type": "integer",
           "format": "int64"
         },
-        "username": {
+        "address": {
+          "type": "string"
+        },
+        "price": {
+          "type": "number",
+          "format": "float"
+        },
+        "agentId": {
+          "type": "integer",
+          "format": "int64"
+        }
+      },
+      "required": [
+        "id",
+        "address",
+        "price",
+        "agentId"
+      ]
+    },
+    "NewProperty": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "type": "string",
+          "description": "Address of the property"
+        },
+        "price": {
+          "type": "number",
+          "format": "float",
+          "description": "Price of the property"
+        },
+        "agentId": {
+          "type": "integer",
+          "format": "int64",
+          "description": "ID of the agent who owns the property"
+        }
+      },
+      "required": [
+        "address",
+        "price",
+        "agentId"
+      ]
+    },
+    "Agent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "name": {
           "type": "string"
         },
         "email": {
@@ -315,67 +574,118 @@
         }
       },
       "required": [
-        "username",
+        "id",
+        "name",
         "email"
       ]
     },
-    "Appointment": {
+    "NewAgent": {
       "type": "object",
       "properties": {
-        "id": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "userId": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "resourceId": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "startTime": {
+        "name": {
           "type": "string",
-          "format": "date-time"
+          "description": "Name of the agent"
         },
-        "endTime": {
+        "email": {
           "type": "string",
-          "format": "date-time"
-        },
-        "status": {
-          "type": "string",
-          "enum": [
-            "pending",
-            "confirmed",
-            "cancelled"
-          ]
+          "description": "Email address of the agent"
         }
       },
       "required": [
-        "userId",
-        "resourceId",
-        "startTime",
-        "endTime",
-        "status"
+        "name",
+        "email"
       ]
     },
-    "Resource": {
+    "Inquiry": {
       "type": "object",
       "properties": {
         "id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "propertyId": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "agentId": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "propertyId",
+        "agentId",
+        "message"
+      ]
+    },
+    "InquiryResponse": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "inquiryId": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "response": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "inquiryId",
+        "response"
+      ]
+    },
+    "Analytics": {
+      "type": "object",
+      "properties": {
+        "totalProperties": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "averagePrice": {
+          "type": "number",
+          "format": "float"
+        },
+        "topAgents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/TopAgent"
+          }
+        }
+      },
+      "required": [
+        "totalProperties",
+        "averagePrice",
+        "topAgents"
+      ]
+    },
+    "TopAgent": {
+      "type": "object",
+      "properties": {
+        "agentId": {
           "type": "integer",
           "format": "int64"
         },
         "name": {
           "type": "string"
         },
-        "capacity": {
-          "type": "integer"
+        "propertiesSold": {
+          "type": "integer",
+          "format": "int64"
         }
       },
       "required": [
+        "agentId",
         "name",
-        "capacity"
+        "propertiesSold"
       ]
     }
   },

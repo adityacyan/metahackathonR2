@@ -356,7 +356,7 @@ async def run_episode(env: APIEnvClient, client: OpenAI, episode_index: int) -> 
             observation = result.observation
             reward = result.reward or 0.0
             done = result.done
-            error = None
+            error = getattr(result, "last_action_error", None)
 
             rewards.append(reward)
             steps_taken = step
@@ -428,12 +428,6 @@ async def main() -> None:
         for episode_index in range(1, BASELINE_EPISODES + 1):
             episode_result = await run_episode(env, client, episode_index)
             episode_results.append(episode_result)
-            log_end(
-                success=episode_result["success"],
-                steps=episode_result["steps"],
-                score=episode_result["score"],
-                rewards=episode_result["rewards"],
-            )
 
         aggregate_score = (
             sum(item["score"] for item in episode_results) / len(episode_results)
@@ -451,6 +445,14 @@ async def main() -> None:
             await env.close()
         except Exception as e:
             print(f"[DEBUG] env.close() error: {e}", flush=True)
+
+        for episode_result in episode_results:
+            log_end(
+                success=episode_result["success"],
+                steps=episode_result["steps"],
+                score=episode_result["score"],
+                rewards=episode_result["rewards"],
+            )
 
 
 if __name__ == "__main__":
