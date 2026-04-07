@@ -29,6 +29,7 @@ Example Output:
 import asyncio
 import json
 import os
+import math
 import sys
 import textwrap
 from datetime import datetime
@@ -99,6 +100,34 @@ BASELINE_EPISODES = 3
 # Reward calculation constants
 MAX_REWARD_PER_STEP = 1.0  # Maximum possible reward per step
 
+
+def _strict_score(value: float) -> float:
+    """Normalize any score/reward to two decimals in the open interval (0, 1)."""
+    try:
+        numeric_value = float(value)
+    except (TypeError, ValueError):
+        numeric_value = 0.01
+
+    if not math.isfinite(numeric_value):
+        numeric_value = 0.01
+    if numeric_value <= 0.0:
+        numeric_value = 0.01
+    elif numeric_value >= 1.0:
+        numeric_value = 0.99
+
+    normalized = float(f"{numeric_value:.2f}")
+    if normalized <= 0.0:
+        return 0.01
+    if normalized >= 1.0:
+        return 0.99
+    return normalized
+
+
+def _single_line(text: str) -> str:
+    """Collapse any whitespace/newlines so log output remains one line."""
+    return " ".join(str(text).split())
+
+
 SYSTEM_PROMPT = textwrap.dedent(
     """
 You are an expert API architect tasked with designing robust, secure, and compliant REST API schemas.
@@ -160,21 +189,26 @@ def log_step(
     step: int, action: str, reward: float, done: bool, error: Optional[str]
 ) -> None:
     """Log a single step."""
-    error_val = error if error else "null"
+    reward_val = _strict_score(reward)
+    error_val = _single_line(error) if error else "null"
     done_val = str(done).lower()
-    # Truncate action for readability but keep it informative
-    action_preview = action[:100] + "..." if len(action) > 100 else action
+    # Keep action as a single line and truncate for readability.
+    action_compact = _single_line(action)
+    action_preview = (
+        action_compact[:100] + "..." if len(action_compact) > 100 else action_compact
+    )
     print(
-        f"[STEP] step={step} action={action_preview} reward={reward:.2f} done={done_val} error={error_val}",
+        f"[STEP] step={step} action={action_preview} reward={reward_val:.2f} done={done_val} error={error_val}",
         flush=True,
     )
 
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
     """Log the end of an episode."""
-    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+    safe_score = _strict_score(score)
+    rewards_str = ",".join(f"{_strict_score(r):.2f}" for r in rewards)
     print(
-        f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}",
+        f"[END] success={str(success).lower()} steps={steps} score={safe_score:.2f} rewards={rewards_str}",
         flush=True,
     )
 
@@ -321,7 +355,7 @@ async def run_episode(env: APIEnvClient, client: OpenAI, episode_index: int) -> 
     history: List[str] = []
     rewards: List[float] = []
     steps_taken = 0
-    score = 0.0
+    score = 0.01
     success = False
 
     try:
@@ -355,7 +389,7 @@ async def run_episode(env: APIEnvClient, client: OpenAI, episode_index: int) -> 
             action = APIAction(schema_json=schema_json, iteration=step)
             result = await env.step(action)
             observation = result.observation
-            reward = result.reward or 0.0
+            reward = _strict_score(result.reward if result.reward is not None else 0.01)
             done = result.done
             error = getattr(result, "last_action_error", None)
 
@@ -381,7 +415,7 @@ async def run_episode(env: APIEnvClient, client: OpenAI, episode_index: int) -> 
 
         executed_steps = max(steps_taken, 1)
         score = sum(rewards) / (executed_steps * MAX_REWARD_PER_STEP)
-        score = min(max(score, 0.0), 1.0)
+        score = _strict_score(score)
         success = score >= SUCCESS_SCORE_THRESHOLD
         return {
             "task_name": task_name,
@@ -427,17 +461,29 @@ async def main() -> None:
     episode_results = []
     try:
         for episode_index in range(1, BASELINE_EPISODES + 1):
-            episode_result = await run_episode(env, client, episode_index)
+            try:
+                episode_result = await run_episode(env, client, episode_index)
+            except Exception as exc:
+                print(f"[DEBUG] Episode {episode_index} failed: {exc}", flush=True)
+                episode_result = {
+                    "task_name": f"episode_{episode_index}",
+                    "task_difficulty": "unknown",
+                    "steps": 0,
+                    "score": 0.01,
+                    "success": False,
+                    "rewards": [],
+                }
             episode_results.append(episode_result)
 
         aggregate_score = (
             sum(item["score"] for item in episode_results) / len(episode_results)
             if episode_results
-            else 0.0
+            else 0.01
         )
+        aggregate_score = _strict_score(aggregate_score)
         passed = sum(1 for item in episode_results if item["success"])
         print(
-            f"[BASELINE] episodes={len(episode_results)} passed={passed} aggregate_score={aggregate_score:.3f}",
+            f"[BASELINE] episodes={len(episode_results)} passed={passed} aggregate_score={aggregate_score:.2f}",
             flush=True,
         )
 
@@ -446,6 +492,18 @@ async def main() -> None:
             await env.close()
         except Exception as e:
             print(f"[DEBUG] env.close() error: {e}", flush=True)
+
+        if not episode_results:
+            episode_results.append(
+                {
+                    "task_name": "episode_0",
+                    "task_difficulty": "unknown",
+                    "steps": 0,
+                    "score": 0.01,
+                    "success": False,
+                    "rewards": [],
+                }
+            )
 
         for episode_result in episode_results:
             log_end(

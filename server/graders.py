@@ -468,7 +468,7 @@ class AdvancedBestPracticesGrader(TaskGrader):
         if total_operations > 0:
             error_score = (operations_with_errors / total_operations) * 0.25
         else:
-            error_score = 0.0
+            error_score = 0.01
 
         score += error_score
         details["error_responses"] = {
