@@ -99,7 +99,7 @@ class MigrationEnvironment(APIEnvironment):
     MAX_ITERATIONS = 15
     CONTRACT_COMPLETION_THRESHOLD = 0.95
     TICKET_SATISFACTION_THRESHOLD = 0.8
-    
+
     # Thread-local storage for concurrent execution
     _thread_local = threading.local()
 
@@ -214,7 +214,7 @@ class MigrationEnvironment(APIEnvironment):
 
     def __init__(self, **kwargs):
         """Initialize the Migration Environment.
-        
+
         Thread-safe initialization for concurrent episode execution.
 
         Args:
@@ -226,7 +226,7 @@ class MigrationEnvironment(APIEnvironment):
         self._contract_grader = ContractSuiteGrader()
         self._breaking_change_detector = BreakingChangeDetector()
         self._ticket_grader = TicketSatisfactionGrader()
-        
+
         # Lock for thread-safe operations (if needed for shared state)
         self._lock = threading.Lock()
 
@@ -270,7 +270,10 @@ class MigrationEnvironment(APIEnvironment):
             logger.error(
                 f"Contract suite generation failed for baseline schema: {e}",
                 exc_info=True,
-                extra={"episode_id": self._state.episode_id, "baseline_schema": self._baseline_schema}
+                extra={
+                    "episode_id": self._state.episode_id,
+                    "baseline_schema": self._baseline_schema,
+                },
             )
             raise RuntimeError(
                 f"Failed to generate contract suite: {e}. "
@@ -285,7 +288,7 @@ class MigrationEnvironment(APIEnvironment):
             logger.error(
                 f"Ticket queue generation failed: {e}",
                 exc_info=True,
-                extra={"episode_id": self._state.episode_id}
+                extra={"episode_id": self._state.episode_id},
             )
             # Provide fallback with empty ticket queue
             self._ticket_progression = TicketProgressionManager([])
@@ -345,6 +348,17 @@ class MigrationEnvironment(APIEnvironment):
 
         return observation
 
+    @property
+    def state(self) -> State:
+        """
+        Return the current OpenEnv state metadata.
+
+        The UI and HTTP/WebSocket clients may call state immediately after reset.
+        MigrationEnvironment does not rely on APIEnvironment._current_state, so we
+        expose the canonical OpenEnv State object to keep reset/state flows stable.
+        """
+        return self._state
+
     def step(self, action: MigrationAction) -> MigrationObservation:
         """
         Execute a migration step by validating evolved schema and calculating reward.
@@ -372,7 +386,10 @@ class MigrationEnvironment(APIEnvironment):
         except json.JSONDecodeError as e:
             logger.warning(
                 f"Invalid JSON schema submitted at iteration {iteration_count}: {e}",
-                extra={"episode_id": self._state.episode_id, "iteration": iteration_count}
+                extra={
+                    "episode_id": self._state.episode_id,
+                    "iteration": iteration_count,
+                },
             )
             return self._create_error_observation(
                 f"Invalid JSON schema: {str(e)}", iteration_count
@@ -381,7 +398,10 @@ class MigrationEnvironment(APIEnvironment):
             logger.error(
                 f"Unexpected error parsing schema at iteration {iteration_count}: {e}",
                 exc_info=True,
-                extra={"episode_id": self._state.episode_id, "iteration": iteration_count}
+                extra={
+                    "episode_id": self._state.episode_id,
+                    "iteration": iteration_count,
+                },
             )
             return self._create_error_observation(
                 f"Schema parsing error: {str(e)}", iteration_count
@@ -401,7 +421,10 @@ class MigrationEnvironment(APIEnvironment):
                 logger.error(
                     f"Contract testing failed at iteration {iteration_count}: {e}",
                     exc_info=True,
-                    extra={"episode_id": self._state.episode_id, "iteration": iteration_count}
+                    extra={
+                        "episode_id": self._state.episode_id,
+                        "iteration": iteration_count,
+                    },
                 )
                 # Provide fallback contract result
                 contract_result = ContractTestResult(
@@ -414,20 +437,23 @@ class MigrationEnvironment(APIEnvironment):
 
             # Step 3: Detect breaking changes with error handling
             try:
-                breaking_report = self._breaking_change_detector.detect_breaking_changes(
-                    self._previous_schema, current_schema
+                breaking_report = (
+                    self._breaking_change_detector.detect_breaking_changes(
+                        self._previous_schema, current_schema
+                    )
                 )
             except Exception as e:
                 logger.error(
                     f"Breaking change detection failed at iteration {iteration_count}: {e}",
                     exc_info=True,
-                    extra={"episode_id": self._state.episode_id, "iteration": iteration_count}
+                    extra={
+                        "episode_id": self._state.episode_id,
+                        "iteration": iteration_count,
+                    },
                 )
                 # Provide fallback breaking change report
                 breaking_report = BreakingChangeReport(
-                    breaking_change_count=0,
-                    breaking_changes=[],
-                    breaking_penalty=0.0
+                    breaking_change_count=0, breaking_changes=[], breaking_penalty=0.0
                 )
 
             # Step 4: Score ticket satisfaction with error handling
@@ -444,8 +470,8 @@ class MigrationEnvironment(APIEnvironment):
                         extra={
                             "episode_id": self._state.episode_id,
                             "iteration": iteration_count,
-                            "ticket_id": active_ticket.ticket_id
-                        }
+                            "ticket_id": active_ticket.ticket_id,
+                        },
                     )
                     # Provide fallback score
                     ticket_score = 0.0
@@ -453,7 +479,9 @@ class MigrationEnvironment(APIEnvironment):
                 ticket_score = 1.0
 
             # Step 5: Calculate progress delta
-            previous_combined = (self._previous_contract_rate + self._previous_ticket_score) / 2
+            previous_combined = (
+                self._previous_contract_rate + self._previous_ticket_score
+            ) / 2
             current_combined = (contract_result.contract_pass_rate + ticket_score) / 2
             progress_delta = max(0.0, current_combined - previous_combined)
 
@@ -484,7 +512,8 @@ class MigrationEnvironment(APIEnvironment):
             # Step 10: Check termination conditions
             all_tickets_done = (
                 self._ticket_progression.is_all_tickets_completed()
-                and contract_result.contract_pass_rate >= self.CONTRACT_COMPLETION_THRESHOLD
+                and contract_result.contract_pass_rate
+                >= self.CONTRACT_COMPLETION_THRESHOLD
             )
             max_iterations_reached = iteration_count >= self.MAX_ITERATIONS
             episode_done = all_tickets_done or max_iterations_reached
@@ -508,7 +537,10 @@ class MigrationEnvironment(APIEnvironment):
             if elapsed > 500:
                 logger.warning(
                     f"step() took {elapsed:.1f}ms (target: <500ms)",
-                    extra={"episode_id": self._state.episode_id, "iteration": iteration_count}
+                    extra={
+                        "episode_id": self._state.episode_id,
+                        "iteration": iteration_count,
+                    },
                 )
 
             return observation
@@ -518,7 +550,10 @@ class MigrationEnvironment(APIEnvironment):
             logger.error(
                 f"Unexpected error in step() at iteration {iteration_count}: {e}",
                 exc_info=True,
-                extra={"episode_id": self._state.episode_id, "iteration": iteration_count}
+                extra={
+                    "episode_id": self._state.episode_id,
+                    "iteration": iteration_count,
+                },
             )
             return self._create_error_observation(
                 f"Internal environment error: {str(e)}", iteration_count
@@ -685,7 +720,9 @@ class MigrationEnvironment(APIEnvironment):
             MigrationObservation with all required components
         """
         # Get ticket completion status
-        tickets_completed, total_tickets = self._ticket_progression.get_completion_status()
+        tickets_completed, total_tickets = (
+            self._ticket_progression.get_completion_status()
+        )
 
         # Generate human-readable feedback
         schema_feedback = self._generate_migration_feedback(
@@ -756,7 +793,6 @@ class MigrationEnvironment(APIEnvironment):
 
         return observation
 
-
     def _create_error_observation(
         self, error_message: str, iteration: int
     ) -> MigrationObservation:
@@ -776,7 +812,7 @@ class MigrationEnvironment(APIEnvironment):
 
         logger.info(
             f"Creating error observation: {error_message}",
-            extra={"episode_id": self._state.episode_id, "iteration": iteration}
+            extra={"episode_id": self._state.episode_id, "iteration": iteration},
         )
 
         # Create error contract report
@@ -795,12 +831,13 @@ class MigrationEnvironment(APIEnvironment):
 
         # Get ticket completion status safely
         try:
-            tickets_completed, total_tickets = self._ticket_progression.get_completion_status()
+            tickets_completed, total_tickets = (
+                self._ticket_progression.get_completion_status()
+            )
             active_ticket = self._ticket_progression.get_active_ticket()
         except Exception as e:
             logger.error(
-                f"Failed to get ticket status in error observation: {e}",
-                exc_info=True
+                f"Failed to get ticket status in error observation: {e}", exc_info=True
             )
             tickets_completed, total_tickets = 0, 0
             active_ticket = None
@@ -808,11 +845,17 @@ class MigrationEnvironment(APIEnvironment):
         # Create validation error to match error_count
         validation_errors = [
             VError(
-                error_type="json_parse_error" if "JSON" in error_message else "schema_error",
+                error_type=(
+                    "json_parse_error" if "JSON" in error_message else "schema_error"
+                ),
                 severity="critical",
                 path="schema",
                 message=error_message,
-                suggestion="Please provide valid JSON schema" if "JSON" in error_message else "Please fix the schema error"
+                suggestion=(
+                    "Please provide valid JSON schema"
+                    if "JSON" in error_message
+                    else "Please fix the schema error"
+                ),
             )
         ]
 

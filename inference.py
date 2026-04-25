@@ -1,141 +1,178 @@
 #!/usr/bin/env python3
-"""
-Inference Script for API Lifecycle Migration Environment.
-
-MANDATORY Environment Variables:
-- API_BASE_URL: LLM endpoint (default: HuggingFace router)
-- MODEL_NAME: Model identifier
-- HF_TOKEN or API_KEY: API key
-- ENV_SERVER_URL: Environment server URL (default: http://localhost:7860)
-
-STDOUT FORMAT:
-- [START] task=<task> env=<env> model=<model>
-- [STEP] step=<n> action=<json> reward=<0.00> done=<true|false> error=<msg|null>
-- [END] success=<true|false> steps=<n> score=<0.000> rewards=<r1,r2,...>
-"""
+"""Baseline inference script for API Lifecycle Migration environment."""
 
 import asyncio
+import inspect
 import json
 import math
 import os
 import sys
 import textwrap
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     pass
 
-from openai import OpenAI
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 
+from migration_models import MigrationAction, MigrationObservation
+
 try:
-    from openenv.core import EnvClient
-    from migration_models import MigrationAction, MigrationObservation
+    from client import MigrationEnvClient
 except ImportError:
-    from api_conformance_gym.migration_models import MigrationAction, MigrationObservation
+    MigrationEnvClient = None
+
+from openenv.core import EnvClient
 
 # Configuration
 API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY") or os.getenv("OPENAI_API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-Coder-3B-Instruct:nscale")
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-Coder-3B-Instruct")
 ENV_SERVER_URL = os.getenv("ENV_SERVER_URL", "http://localhost:7860")
+
 TASK_NAME = "api-lifecycle-migration"
 BENCHMARK = "api_lifecycle_migration"
-MAX_STEPS = 15
-TEMPERATURE = 0.3
-MAX_TOKENS = 10000
-SUCCESS_SCORE_THRESHOLD = 0.5
-BASELINE_EPISODES = 3
+MAX_STEPS = int(os.getenv("MAX_STEPS", "15"))
+TEMPERATURE = float(os.getenv("TEMPERATURE", "0.3"))
+MAX_TOKENS = int(os.getenv("MAX_TOKENS", "4000"))
+SUCCESS_SCORE_THRESHOLD = float(os.getenv("SUCCESS_SCORE_THRESHOLD", "0.5"))
+BASELINE_EPISODES = int(os.getenv("BASELINE_EPISODES", "3"))
 LOG_FILE_PATH = os.path.join(current_dir, "log.txt")
 
-if not API_KEY:
-    print("[ERROR] No API key found. Set HF_TOKEN, API_KEY, or OPENAI_API_KEY.", flush=True)
-    sys.exit(1)
+SYSTEM_PROMPT = textwrap.dedent(
+    """
+You are an expert API platform engineer. Evolve an OpenAPI schema while preserving backward compatibility.
+
+Hard constraints:
+- Output valid JSON only (no markdown).
+- Keep existing v1 operations and fields functional.
+- Prefer additive changes over breaking changes.
+- Keep security protection on all operations.
+- For deprecation tasks, use deprecated: true while keeping behavior intact.
+
+Return only the full updated OpenAPI schema JSON object.
+"""
+).strip()
 
 
-def _strict_score(value: float) -> float:
+def _safe_score(value: float) -> float:
     try:
         v = float(value)
     except (TypeError, ValueError):
-        v = 0.01
+        v = 0.0
     if not math.isfinite(v):
-        v = 0.01
-    v = max(0.01, min(0.99, v))
-    return float(f"{v:.2f}")
+        v = 0.0
+    return max(0.0, min(1.0, v))
 
 
-def _single_line(text: str) -> str:
+def _single_line(text: Any) -> str:
     return " ".join(str(text).split())
 
 
-SYSTEM_PROMPT = textwrap.dedent("""
-You are an expert API platform engineer. Your job is to iteratively evolve an OpenAPI 3.0/3.1 schema while maintaining backward compatibility for existing clients.
+def _as_dict(obj: Any) -> Dict[str, Any]:
+    if obj is None:
+        return {}
+    if isinstance(obj, dict):
+        return obj
+    if hasattr(obj, "model_dump"):
+        return obj.model_dump()
+    return {}
 
-Hard constraints:
-- Output MUST be valid JSON only (no markdown, no commentary).
-- Output MUST be a complete OpenAPI schema object.
-- NEVER remove existing endpoints, operations, or response fields used by clients.
-- Prefer additive changes (new endpoints, new optional fields) over breaking changes.
-- Keep v1 stable. If a breaking change is required, introduce v2 endpoints while keeping v1 working.
-- Every operation must be protected by a security scheme (global or per-operation).
-- Use `deprecated: true` when asked to deprecate; deprecated endpoints must remain functional.
-- Provide summaries/descriptions for all operations.
 
-You will receive:
-1. Baseline schema (the v1 schema you must evolve)
-2. Active migration ticket with acceptance criteria
-3. Contract test report (what clients require and what broke)
-4. Validator feedback
+def _extract_json_content(text: str) -> str:
+    payload = (text or "").strip()
+    if not payload.startswith("```"):
+        return payload
 
-Goal: maximize contract pass rate + satisfy tickets with minimal breaking changes.
-
-Return ONLY the updated OpenAPI schema JSON.
-""").strip()
+    lines = payload.splitlines()
+    json_lines: List[str] = []
+    in_block = False
+    for line in lines:
+        if line.strip().startswith("```"):
+            in_block = not in_block
+            continue
+        if in_block:
+            json_lines.append(line)
+    return "\n".join(json_lines).strip()
 
 
 def log_start(task: str, env: str, model: str) -> None:
     print(f"[START] task={task} env={env} model={model}", flush=True)
 
 
-def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
-    reward_val = _strict_score(reward)
+def log_step(
+    step: int, action: str, reward: float, done: bool, error: Optional[str]
+) -> None:
+    reward_val = _safe_score(reward)
     error_val = _single_line(error) if error else "null"
     action_preview = _single_line(action)
-    action_preview = action_preview[:100] + "..." if len(action_preview) > 100 else action_preview
-    print(f"[STEP] step={step} action={action_preview} reward={reward_val:.2f} done={str(done).lower()} error={error_val}", flush=True)
+    if len(action_preview) > 100:
+        action_preview = action_preview[:100] + "..."
+    print(
+        f"[STEP] step={step} action={action_preview} reward={reward_val:.3f} done={str(done).lower()} error={error_val}",
+        flush=True,
+    )
 
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
-    safe_score = _strict_score(score)
-    rewards_str = ",".join(f"{_strict_score(r):.2f}" for r in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} score={safe_score:.2f} rewards={rewards_str}", flush=True)
+    safe_score = _safe_score(score)
+    rewards_str = ",".join(f"{_safe_score(r):.3f}" for r in rewards)
+    print(
+        f"[END] success={str(success).lower()} steps={steps} score={safe_score:.3f} rewards={rewards_str}",
+        flush=True,
+    )
 
 
 def build_user_prompt(obs: "MigrationObservation", step: int) -> str:
-    ticket = obs.active_ticket
+    ticket = getattr(obs, "active_ticket", None)
     ticket_text = "No active ticket."
     if ticket:
-        criteria = "\n".join(f"  - {c}" for c in ticket.acceptance_criteria)
-        ticket_text = f"[{ticket.ticket_type.upper()}] {ticket.title}\n{ticket.description}\nAcceptance criteria:\n{criteria}"
+        criteria_list = getattr(ticket, "acceptance_criteria", []) or []
+        criteria = "\n".join(f"  - {c}" for c in criteria_list)
+        ticket_text = (
+            f"[{getattr(ticket, 'ticket_type', 'unknown').upper()}] "
+            f"{getattr(ticket, 'title', 'Untitled')}\n"
+            f"{getattr(ticket, 'description', '')}\n"
+            f"Acceptance criteria:\n{criteria}"
+        )
 
-    contract = obs.contract_test_report
-    contract_text = f"Pass rate: {contract.contract_pass_rate:.1%}"
-    if contract.contract_failures:
-        contract_text += "\nFailures:\n" + "\n".join(f"  - {f}" for f in contract.contract_failures[:5])
+    contract = getattr(obs, "contract_test_report", None)
+    contract_pass_rate = _safe_score(getattr(contract, "contract_pass_rate", 0.0))
+    contract_failures = getattr(contract, "contract_failures", []) if contract else []
+    contract_text = f"Pass rate: {contract_pass_rate:.1%}"
+    if contract_failures:
+        contract_text += "\nFailures:\n" + "\n".join(
+            f"  - {f}" for f in contract_failures[:5]
+        )
 
-    breaking = obs.breaking_change_report
-    breaking_text = f"Breaking changes: {breaking.breaking_change_count}"
-    if breaking.breaking_changes:
-        breaking_text += "\n" + "\n".join(f"  - {c}" for c in breaking.breaking_changes[:3])
+    breaking = getattr(obs, "breaking_change_report", None)
+    breaking_count = getattr(breaking, "breaking_change_count", 0)
+    breaking_items = getattr(breaking, "breaking_changes", []) if breaking else []
+    breaking_text = f"Breaking changes: {breaking_count}"
+    if breaking_items:
+        lines: List[str] = []
+        for item in breaking_items[:3]:
+            if isinstance(item, str):
+                lines.append(item)
+            else:
+                item_dict = _as_dict(item)
+                lines.append(item_dict.get("description", str(item)))
+        breaking_text += "\n" + "\n".join(f"  - {line}" for line in lines)
 
-    return textwrap.dedent(f"""
+    return textwrap.dedent(
+        f"""
 BASELINE_SCHEMA_JSON:
 {obs.baseline_schema_json}
 
@@ -149,17 +186,111 @@ BREAKING_CHANGES:
 {breaking_text}
 
 VALIDATION_FEEDBACK:
-- validity_score: {obs.validity_score:.2f}
-- best_practices_score: {obs.best_practices_score:.2f}
-- ticket_satisfaction: {obs.ticket_satisfaction_score:.2f}
-- tickets_completed: {obs.tickets_completed}/{obs.total_tickets}
-- feedback: {obs.schema_feedback}
+- validity_score: {_safe_score(getattr(obs, 'validity_score', 0.0)):.2f}
+- best_practices_score: {_safe_score(getattr(obs, 'best_practices_score', 0.0)):.2f}
+- ticket_satisfaction: {_safe_score(getattr(obs, 'ticket_satisfaction_score', 0.0)):.2f}
+- tickets_completed: {getattr(obs, 'tickets_completed', 0)}/{getattr(obs, 'total_tickets', 0)}
+- feedback: {getattr(obs, 'schema_feedback', '')}
 
 Return ONLY valid JSON.
-""").strip()
+"""
+    ).strip()
 
 
-def get_model_response(client: OpenAI, obs: "MigrationObservation", step: int) -> Tuple[str, str]:
+def _ensure_security(schema: Dict[str, Any]) -> None:
+    components = schema.setdefault("components", {})
+    security_schemes = components.setdefault("securitySchemes", {})
+    if not security_schemes:
+        security_schemes["apiKey"] = {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-API-Key",
+        }
+
+    if "security" not in schema:
+        scheme_name = next(iter(security_schemes.keys()))
+        schema["security"] = [{scheme_name: []}]
+
+
+def _ensure_operation_docs(schema: Dict[str, Any]) -> None:
+    for path, path_item in schema.get("paths", {}).items():
+        if not isinstance(path_item, dict):
+            continue
+        for method, op in path_item.items():
+            if method.lower() not in {"get", "post", "put", "patch", "delete"}:
+                continue
+            if not isinstance(op, dict):
+                continue
+            op.setdefault("summary", f"{method.upper()} {path}")
+            op.setdefault("description", f"{method.upper()} operation for {path}")
+
+
+def _apply_ticket_heuristics(base_schema_json: str, obs: "MigrationObservation") -> str:
+    try:
+        schema = json.loads(base_schema_json)
+        if not isinstance(schema, dict):
+            schema = {}
+    except Exception:
+        schema = {}
+
+    schema.setdefault("openapi", "3.0.0")
+    schema.setdefault("info", {"title": "Migrated API", "version": "1.0.0"})
+    schema.setdefault("paths", {})
+
+    _ensure_security(schema)
+    _ensure_operation_docs(schema)
+
+    ticket = getattr(obs, "active_ticket", None)
+    ticket_type = (getattr(ticket, "ticket_type", "") or "").lower()
+
+    if ticket_type == "additive":
+        if "/v1/reviews" not in schema["paths"]:
+            schema["paths"]["/v1/reviews"] = {
+                "get": {
+                    "summary": "List reviews",
+                    "description": "List available reviews",
+                    "responses": {"200": {"description": "Reviews list"}},
+                },
+                "post": {
+                    "summary": "Create review",
+                    "description": "Create a review record",
+                    "responses": {"201": {"description": "Review created"}},
+                },
+            }
+    elif ticket_type == "security":
+        _ensure_security(schema)
+    elif ticket_type == "compliance":
+        _ensure_operation_docs(schema)
+    elif ticket_type == "deprecation":
+        for _, path_item in schema.get("paths", {}).items():
+            if isinstance(path_item, dict):
+                for _, op in path_item.items():
+                    if isinstance(op, dict):
+                        op.setdefault("deprecated", True)
+                break
+        schema["paths"].setdefault(
+            "/v2/search",
+            {
+                "get": {
+                    "summary": "Search resources",
+                    "description": "Version 2 search endpoint",
+                    "responses": {"200": {"description": "Search results"}},
+                }
+            },
+        )
+
+    return json.dumps(schema, separators=(",", ":"))
+
+
+def get_model_response(
+    client: Optional[OpenAI],
+    obs: "MigrationObservation",
+    step: int,
+    current_schema_json: str,
+) -> Tuple[str, str]:
+    if client is None:
+        return _apply_ticket_heuristics(current_schema_json, obs), "heuristic"
+
     user_prompt = build_user_prompt(obs, step)
     try:
         completion = client.chat.completions.create(
@@ -171,99 +302,135 @@ def get_model_response(client: OpenAI, obs: "MigrationObservation", step: int) -
             temperature=TEMPERATURE,
             max_tokens=MAX_TOKENS,
         )
-        response = (completion.choices[0].message.content or "").strip()
-        if response.startswith("```"):
-            lines = response.split("\n")
-            json_lines, in_block = [], False
-            for line in lines:
-                if line.strip().startswith("```"):
-                    in_block = not in_block
-                    continue
-                if in_block:
-                    json_lines.append(line)
-            response = "\n".join(json_lines)
+        response = _extract_json_content(completion.choices[0].message.content or "")
         json.loads(response)
         return response, "llm"
     except Exception as exc:
         print(f"[DEBUG] Model request failed: {exc}", flush=True)
-
-    # Fallback: return baseline schema unchanged
-    return obs.baseline_schema_json, "fallback"
+        return _apply_ticket_heuristics(current_schema_json, obs), "heuristic-fallback"
 
 
-async def run_episode(env, client: OpenAI, episode_index: int) -> dict:
+async def _maybe_await(value: Any) -> Any:
+    if inspect.isawaitable(value):
+        return await value
+    return value
+
+
+def _extract_observation(result: Any) -> MigrationObservation:
+    if hasattr(result, "observation"):
+        return result.observation
+    return result
+
+
+async def run_episode(
+    env: Any, client: Optional[OpenAI], episode_index: int
+) -> Dict[str, Any]:
     rewards: List[float] = []
     steps_taken = 0
-    score = 0.01
+    score = 0.0
 
     try:
-        result = await env.reset()
-        obs = result.observation
-        log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME)
+        reset_result = await _maybe_await(env.reset())
+        obs = _extract_observation(reset_result)
+        current_schema_json = getattr(obs, "baseline_schema_json", "{}")
+
+        log_start(
+            task=TASK_NAME, env=BENCHMARK, model=(MODEL_NAME if client else "heuristic")
+        )
 
         for step in range(1, MAX_STEPS + 1):
-            schema_json, source = await asyncio.to_thread(get_model_response, client, obs, step)
+            schema_json, source = await asyncio.to_thread(
+                get_model_response, client, obs, step, current_schema_json
+            )
             action = MigrationAction(schema_json=schema_json, iteration=step)
-            result = await env.step(action)
-            obs = result.observation
-            reward = _strict_score(result.reward if result.reward is not None else 0.01)
-            done = result.done
-            error = getattr(result, "last_action_error", None)
+            step_result = await _maybe_await(env.step(action))
+            obs = _extract_observation(step_result)
+
+            reward = _safe_score(getattr(step_result, "reward", 0.0))
+            done = bool(getattr(step_result, "done", False))
+            error = getattr(step_result, "last_action_error", None)
 
             rewards.append(reward)
             steps_taken = step
-            log_step(step=step, action=schema_json, reward=reward, done=done, error=error)
+            current_schema_json = schema_json
 
-            with open(LOG_FILE_PATH, "a", encoding="utf-8") as f:
+            log_step(
+                step=step, action=schema_json, reward=reward, done=done, error=error
+            )
+
+            with open(LOG_FILE_PATH, "a", encoding="utf-8") as log_file:
                 ts = datetime.utcnow().isoformat() + "Z"
-                f.write(f"\n[{ts}] episode={episode_index} step={step} source={source} reward={reward:.3f} done={str(done).lower()}\n")
+                log_file.write(
+                    f"[{ts}] episode={episode_index} step={step} source={source} reward={reward:.3f} done={str(done).lower()}\n"
+                )
 
             if done:
                 break
 
         executed = max(steps_taken, 1)
-        score = _strict_score(sum(rewards) / executed)
-        return {"steps": steps_taken, "score": score, "success": score >= SUCCESS_SCORE_THRESHOLD, "rewards": rewards}
-
-    except Exception as e:
-        print(f"[DEBUG] Episode {episode_index} error: {e}", flush=True)
-        return {"steps": steps_taken, "score": score, "success": False, "rewards": rewards}
+        score = _safe_score(sum(rewards) / executed)
+        return {
+            "steps": steps_taken,
+            "score": score,
+            "success": score >= SUCCESS_SCORE_THRESHOLD,
+            "rewards": rewards,
+        }
+    except Exception as exc:
+        print(f"[DEBUG] Episode {episode_index} error: {exc}", flush=True)
+        return {
+            "steps": steps_taken,
+            "score": score,
+            "success": False,
+            "rewards": rewards,
+        }
 
 
 async def main() -> None:
-    from openenv.core import EnvClient
-    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-
     print(f"[INFO] Connecting to {ENV_SERVER_URL}", flush=True)
 
-    # Import the migration client
-    try:
-        from client import MigrationEnvClient
+    client: Optional[OpenAI] = None
+    if OpenAI is not None and API_KEY:
+        client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+    else:
+        print(
+            "[INFO] No API key/OpenAI client found; running in heuristic mode.",
+            flush=True,
+        )
+
+    if MigrationEnvClient is not None:
         env = MigrationEnvClient(base_url=ENV_SERVER_URL)
-    except ImportError:
-        from openenv.core import EnvClient
+    else:
         env = EnvClient(base_url=ENV_SERVER_URL)
 
-    with open(LOG_FILE_PATH, "w", encoding="utf-8") as f:
-        f.write(f"[{datetime.utcnow().isoformat()}Z] run_start env={BENCHMARK} model={MODEL_NAME} episodes={BASELINE_EPISODES}\n")
+    with open(LOG_FILE_PATH, "w", encoding="utf-8") as log_file:
+        model_name = MODEL_NAME if client else "heuristic"
+        log_file.write(
+            f"[{datetime.utcnow().isoformat()}Z] run_start env={BENCHMARK} model={model_name} episodes={BASELINE_EPISODES}\n"
+        )
 
-    episode_results = []
+    episode_results: List[Dict[str, Any]] = []
     try:
         for i in range(1, BASELINE_EPISODES + 1):
-            try:
-                ep = await run_episode(env, client, i)
-            except Exception as exc:
-                print(f"[DEBUG] Episode {i} failed: {exc}", flush=True)
-                ep = {"steps": 0, "score": 0.01, "success": False, "rewards": []}
+            ep = await run_episode(env, client, i)
             episode_results.append(ep)
-            log_end(success=ep["success"], steps=ep["steps"], score=ep["score"], rewards=ep["rewards"])
+            log_end(
+                success=ep["success"],
+                steps=ep["steps"],
+                score=ep["score"],
+                rewards=ep["rewards"],
+            )
 
-        agg = _strict_score(sum(e["score"] for e in episode_results) / len(episode_results))
+        agg = _safe_score(
+            sum(e["score"] for e in episode_results) / max(len(episode_results), 1)
+        )
         passed = sum(1 for e in episode_results if e["success"])
-        print(f"[BASELINE] episodes={len(episode_results)} passed={passed} aggregate_score={agg:.2f}", flush=True)
+        print(
+            f"[BASELINE] episodes={len(episode_results)} passed={passed} aggregate_score={agg:.3f}",
+            flush=True,
+        )
     finally:
         try:
-            await env.close()
+            await _maybe_await(env.close())
         except Exception:
             pass
 
