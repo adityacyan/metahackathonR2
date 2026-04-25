@@ -4,23 +4,14 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""Api Conformance Gym Environment."""
+"""API Lifecycle Migration Environment."""
 
-from .client import APIEnvClient, ApiConformanceGymEnv
-from .models import APIAction, APIObservation, APIState
-
-# Backward-compatible aliases
-ApiConformanceGymAction = APIAction
-ApiConformanceGymObservation = APIObservation
-ApiConformanceGymState = APIState
+from .client import MigrationEnvClient, APIEnvClient
+from .migration_models import MigrationAction, MigrationObservation
 
 __all__ = [
-    "APIAction",
-    "APIObservation",
-    "APIState",
+    "MigrationEnvClient",
     "APIEnvClient",
-    "ApiConformanceGymAction",
-    "ApiConformanceGymObservation",
-    "ApiConformanceGymState",
-    "ApiConformanceGymEnv",
+    "MigrationAction",
+    "MigrationObservation",
 ]

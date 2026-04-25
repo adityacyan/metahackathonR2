@@ -1,52 +1,52 @@
 ---
-title: API Conformance Gym Environment
-emoji: 🏗️
+title: API Lifecycle Migration Environment
+emoji: 🔄
 colorFrom: blue
 colorTo: green
 sdk: docker
 pinned: false
-app_port: 8000
-base_path: /web
+app_port: 7860
 tags:
   - openenv
-  - api-design
-  - openapi
+  - api-evolution
+  - migration
+  - backward-compatibility
   - reinforcement-learning
   - hackathon
 ---
 
-# API Conformance Gym Environment
+# API Lifecycle Migration Environment
 
-**Train RL agents to design robust, secure, and compliant REST API schemas.**
+**Train RL agents on API evolution scenarios with backward compatibility preservation.**
 
-The API Conformance Gym is a production-ready OpenEnv environment for the 2026 Meta PyTorch Hackathon. It trains reinforcement learning agents to design robust REST API schemas through iterative feedback from a comprehensive validation pipeline.
+The API Lifecycle Migration Environment is a production-ready OpenEnv environment for the 2026 Meta PyTorch Hackathon. It trains reinforcement learning agents to evolve v1 OpenAPI schemas while preserving backward compatibility, managing breaking changes, and satisfying progressive migration tickets.
 
 ## 🎯 Environment Description & Motivation
 
-The API Conformance Gym addresses a critical gap in AI training for real-world software engineering tasks. While most RL environments focus on games or toy problems, this environment trains agents on the practical challenge of designing robust REST API schemas - a task that human developers perform daily in production systems.
+The API Lifecycle Migration Environment addresses the critical challenge of API evolution - how to add new features, improve security, and enhance documentation while maintaining backward compatibility for existing clients.
 
-**Why API Design Matters:**
-- APIs are the backbone of modern software architecture
-- Poor API design leads to security vulnerabilities, maintenance nightmares, and integration failures
-- Manual API design is time-intensive and error-prone
-- Industry lacks standardized training environments for API design skills
+**Why API Migration Matters:**
+- APIs must evolve without breaking existing integrations
+- Breaking changes cost millions in client downtime and support
+- Manual migration planning is error-prone and time-intensive
+- Industry lacks standardized training for API lifecycle management
 
 **Real-World Impact:**
-This environment simulates actual human tasks in API design and validation across diverse domains:
+This environment simulates actual API evolution scenarios that platform engineers face daily:
 
-- **Library Management APIs** - User authentication, book search, borrowing systems
-- **E-commerce Checkout APIs** - Product catalogs, shopping carts, payment processing  
-- **Authentication Systems** - Registration, login, password reset, role-based access
-- **Data Analytics APIs** - Data ingestion, query execution, report generation
-- **Scheduling Systems** - Appointment booking, calendar integration, notifications
-- **Content Moderation APIs** - Automated analysis, user reporting, admin workflows
+- **Additive Changes** - Adding new endpoints, optional fields, pagination
+- **Security Enhancements** - Adding authentication, RBAC, audit logging
+- **Deprecation Management** - Marking old endpoints deprecated while maintaining v1
+- **Breaking Changes** - Introducing v2 endpoints when necessary while keeping v1 stable
+- **Documentation Improvements** - Enhancing API docs and compliance
+- **Contract Preservation** - Ensuring existing clients continue to work
 
-Agents learn to create OpenAPI 3.0/3.1 schemas that are not just syntactically correct, but follow industry best practices for security, documentation, and RESTful design.
+Agents learn to evolve OpenAPI schemas progressively through ticket-based tasks while maximizing contract test pass rates and minimizing breaking changes.
 
 ## 🚀 Setup and Usage Instructions
 
 ### Prerequisites
-- Python 3.8+ with conda/miniconda installed
+- Python 3.11+ with conda/miniconda installed
 - Docker (for containerized deployment)
 - Git for cloning the repository
 
@@ -55,7 +55,7 @@ Agents learn to create OpenAPI 3.0/3.1 schemas that are not just syntactically c
 1. **Clone the repository:**
 ```bash
 git clone <repository-url>
-cd api_conformance_gym
+cd api_lifecycle_migration
 ```
 
 2. **Activate the conda environment:**
@@ -85,55 +85,50 @@ conda activate openenv
 # Run the baseline inference script
 python inference.py
 
-# Run tests
-python test_llm_grading.py
+# Run quick test
+python quick_test.py
 
-# Run environment tests
-python test_environment.py
+# Start the server
+python start_server.py
 ```
 
 ### Using the Client
 
 ```python
-from api_conformance_gym import APIEnvClient, APIAction
+from client import MigrationEnvClient
+from migration_models import MigrationAction
+import json
 
 # Connect to environment
-with APIEnvClient(base_url="http://localhost:8000") as env:
-    # Reset to get a business requirement
+with MigrationEnvClient(base_url="http://localhost:7860") as env:
+    # Reset to get baseline schema and first ticket
     result = env.reset()
-    print(f"Task: {result.observation.business_requirement}")
+    obs = result.observation
     
-    # Submit an OpenAPI schema design
-    schema = {
-        "openapi": "3.0.0",
-        "info": {"title": "Library API", "version": "1.0.0"},
-        "paths": {
-            "/books": {
-                "get": {"summary": "List books", "responses": {"200": {"description": "Success"}}}
-            }
-        },
-        "components": {
-            "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer"}}
-        },
-        "security": [{"bearerAuth": []}]
-    }
+    print(f"Baseline schema: {obs.baseline_schema_json[:100]}...")
+    print(f"Active ticket: {obs.active_ticket.title}")
+    print(f"Contract pass rate: {obs.contract_test_report.contract_pass_rate}")
     
-    action = APIAction(schema_json=json.dumps(schema), iteration=1)
+    # Submit evolved schema
+    baseline = json.loads(obs.baseline_schema_json)
+    # ... modify baseline to satisfy ticket ...
+    
+    action = MigrationAction(schema_json=json.dumps(baseline), iteration=1)
     result = env.step(action)
     
     print(f"Reward: {result.reward:.2f}")
-    print(f"Errors: {result.observation.error_count}")
-    print(f"Feedback: {result.observation.schema_feedback}")
+    print(f"Ticket score: {result.observation.ticket_satisfaction_score:.2f}")
+    print(f"Breaking changes: {result.observation.breaking_change_report.breaking_change_count}")
 ```
 
 ### Using Docker
 
 ```bash
 # Build the environment
-docker build -t api-conformance-gym:latest -f server/Dockerfile .
+docker build -t api-lifecycle-migration:latest .
 
 # Run the server
-docker run -p 8000:8000 api-conformance-gym:latest
+docker run -p 7860:7860 api-lifecycle-migration:latest
 ```
 
 ### Using the Baseline Inference Script
@@ -142,36 +137,22 @@ The environment includes a hackathon-compliant inference script:
 
 ```bash
 # Set required environment variables
-export API_BASE_URL="https://your-llm-endpoint.com/v1"
-export MODEL_NAME="Qwen/Qwen2.5-72B-Instruct"
+export API_BASE_URL="https://router.huggingface.co/v1"
+export MODEL_NAME="Qwen/Qwen2.5-Coder-3B-Instruct"
 export HF_TOKEN="your-hugging-face-token"
-export IMAGE_NAME="api-conformance-gym:latest"
+export ENV_SERVER_URL="http://localhost:7860"
 
 # Run the baseline
 python inference.py
 ```
 
-Run baseline inside Docker with runtime environment variable injection (PowerShell):
-
-```powershell
-docker build -t api-conformance-gym:local .
-
-docker run --rm -it `
-    -e API_BASE_URL="https://router.huggingface.co/v1" `
-    -e MODEL_NAME="Qwen/Qwen2.5-72B-Instruct" `
-    -e HF_TOKEN="hf_xxx" `
-    -e ENV_SERVER_URL="http://host.docker.internal:8000" `
-    api-conformance-gym:local `
-    python inference.py
-```
-
 Expected output format:
 ```
-[START] task=api-design env=api_conformance_gym model=Qwen2.5-72B-Instruct
-[STEP] step=1 action={"openapi":"3.0.0",...} reward=0.30 done=false error=null
-[STEP] step=2 action={"openapi":"3.0.0",...} reward=0.65 done=false error=null
+[START] task=api-lifecycle-migration env=api_lifecycle_migration model=Qwen2.5-Coder-3B-Instruct
+[STEP] step=1 action={"openapi":"3.0.0",...} reward=0.55 done=false error=null
+[STEP] step=2 action={"openapi":"3.0.0",...} reward=0.72 done=false error=null
 [STEP] step=3 action={"openapi":"3.0.0",...} reward=0.85 done=true error=null
-[END] success=true steps=3 score=0.600 rewards=0.30,0.65,0.85
+[END] success=true steps=3 score=0.707 rewards=0.55,0.72,0.85
 ```
 
 ## 🏆 Hackathon Compliance
@@ -179,115 +160,110 @@ Expected output format:
 This environment meets all 2026 Meta PyTorch Hackathon requirements:
 
 ### ✅ Real-World Task Simulation
-- Simulates actual API design tasks humans perform daily
-- Business requirements from real-world domains (e-commerce, healthcare, finance)
+- Simulates actual API evolution tasks platform engineers perform daily
+- Progressive ticket-based migration scenarios
+- Backward compatibility preservation requirements
 - Not games or toy problems
 
 ### ✅ OpenEnv Spec Compliance
-- Full OpenEnv interface with typed Action, Observation, and State models
+- Full OpenEnv interface with typed Action, Observation models
 - Standard `reset()`, `step()`, and `state()` primitives
 - Tested via `openenv validate`
 
-### ✅ Minimum 3 Tasks with Graders
-Each task has programmatic graders returning scores in [0.0, 1.0]:
-
-1. **Basic API Structure (Easy)** - OpenAPI compliance, endpoint structure
-   - Pass threshold: 60% (0.6/1.0)
-   - Evaluates: Required fields, endpoint count (2+), HTTP methods, validation errors
-   - Expected difficulty: Entry-level, focuses on fundamental compliance
-
-2. **Security & Authentication (Medium)** - Auth schemes, endpoint protection  
-   - Pass threshold: 70% (0.7/1.0)
-   - Evaluates: Security schemes definition, valid auth types, endpoint protection
-   - Expected difficulty: Intermediate, requires security knowledge
-
-3. **Advanced Best Practices (Hard)** - Documentation, error handling, versioning
-   - Pass threshold: 80% (0.8/1.0)
-   - Evaluates: Operation documentation, error responses, versioning, schemas, naming
-   - Expected difficulty: Advanced, comprehensive API design expertise required
-
-### ✅ Meaningful Reward Function
+### ✅ Multi-Component Reward Function
 Balanced reward formula providing signal across the full trajectory:
 
-$$R = (V \times 0.5) + (B \times 0.3) - (E \times 0.2)$$
+**R = (0.45 × C) + (0.25 × T) + (0.20 × Q) + (0.10 × P) - B - K**
 
 Where:
-- $V$ = Validity Score (0.0-1.0): OpenAPI specification compliance
-- $B$ = Best Practices Score (0.0-1.0): API design best practices adherence  
-- $E$ = Normalized Error Count (0.0-1.0): Error penalty
+- **C** = Contract preservation pass rate (0.0-1.0): Backward compatibility
+- **T** = Ticket satisfaction score (0.0-1.0): Task completion
+- **Q** = Schema quality score (0.0-1.0): Validity + best practices
+- **P** = Progress improvement delta (0.0-1.0): Positive trajectory
+- **B** = Breaking change penalty: Penalizes API breaking changes
+- **K** = Behavior penalty: Penalizes repeated schemas, no progress
 
-**Reward Range**: [-0.2, 1.0]
+**Reward Range**: [0.0, 1.0]
 
 ### ✅ Baseline Inference Script
 - Uses OpenAI Client with environment variables (API_BASE_URL, MODEL_NAME, HF_TOKEN)
 - Emits required stdout format: [START], [STEP], [END] lines
-- Produces reproducible baseline scores across all tasks
+- Produces reproducible baseline scores
 
 ## 🔧 Environment Details
 
 ### Action Space
-**APIAction**: Agent submits OpenAPI schema designs
-- `schema_json` (str): JSON-stringified OpenAPI 3.0/3.1 schema (max 100KB)
+**MigrationAction**: Agent submits evolved OpenAPI schema designs
+- `schema_json` (str): JSON-stringified evolved OpenAPI 3.0/3.1 schema
 - `iteration` (int): Current iteration number for tracking progress
-- `metadata` (dict): Optional metadata (agent_id, timestamp, etc.)
+- `migration_notes` (str, optional): Agent notes about migration strategy
 
 **Action Constraints:**
 - Schema must be valid JSON format
 - Must conform to OpenAPI 3.0 or 3.1 specification
-- Size limit: 100KB to prevent abuse
+- Should maintain backward compatibility with baseline schema
 - Iteration tracking enables multi-turn learning
 
 ### Observation Space  
-**APIObservation**: Structured validation feedback with detailed error analysis
-- `validation_errors` (List[ValidationError]): Detailed error list with line numbers and suggestions
-- `error_count` (int): Total number of validation errors (0-50+ range)
-- `validity_score` (float): OpenAPI specification compliance score (0.0-1.0)
-- `best_practices_score` (float): API design best practices adherence (0.0-1.0)
-- `schema_feedback` (str): Human-readable feedback summary (200-500 chars)
-- `iteration` (int): Current iteration number (1-10)
+**MigrationObservation**: Comprehensive migration feedback
+- `baseline_schema_json` (str): Original v1 schema to maintain compatibility with
+- `active_ticket` (MigrationTicket): Current migration ticket with acceptance criteria
+- `contract_test_report` (ContractTestResult): Backward compatibility test results
+- `breaking_change_report` (BreakingChangeReport): Breaking changes detected
+- `ticket_satisfaction_score` (float): Score for current ticket (0.0-1.0)
+- `tickets_completed` (int): Number of tickets completed
+- `total_tickets` (int): Total number of tickets in queue
+- `validation_errors` (List[ValidationError]): Schema validation errors
+- `error_count` (int): Total validation error count
+- `validity_score` (float): OpenAPI specification compliance (0.0-1.0)
+- `best_practices_score` (float): API design best practices (0.0-1.0)
+- `schema_feedback` (str): Human-readable feedback summary
+- `iteration` (int): Current iteration number (1-15)
 - `episode_info` (dict): Episode metadata and statistics
-- `episode_done` (bool): Whether episode is complete (max 10 iterations)
+- `episode_done` (bool): Whether episode is complete
 
-**Observation Ranges:**
-- Error count typically ranges 0-20 for valid schemas
-- Validity scores: 0.0 (invalid) to 1.0 (fully compliant)
-- Best practices scores: 0.0 (poor design) to 1.0 (exemplary design)
+### Ticket Types
 
-### State Space
-**APIState**: Complete environment state with history
-- `business_requirement` (str): Natural language task description
-- `current_schema` (str): Latest submitted schema
-- `validation_result` (ValidationResult): Detailed validation results
-- `iteration_count` (int): Number of steps taken
-- `schema_history` (List[str]): All previous schema submissions
-- `error_history` (List[List[ValidationError]]): Error progression
-- `episode_done` (bool): Episode completion status
-- `total_reward` (float): Cumulative reward
+1. **Additive Tickets** - Add new endpoints, fields, or features
+   - Example: "Add book reviews endpoint with GET and POST methods"
+   - Difficulty: Easy to Medium
 
-## 🔍 Validation Pipeline
+2. **Security Tickets** - Enhance API security and authentication
+   - Example: "Ensure all endpoints have proper authentication"
+   - Difficulty: Medium
 
-The environment uses a comprehensive 4-stage validation pipeline:
+3. **Compliance Tickets** - Improve documentation and standards
+   - Example: "Add comprehensive descriptions and examples"
+   - Difficulty: Medium
 
-### 1. JSON Parser
-- Validates JSON syntax and structure
-- Checks schema size limits (max 100KB)
-- Provides line/column error information
+4. **Deprecation Tickets** - Mark old endpoints as deprecated
+   - Example: "Deprecate v1 query endpoint, introduce v2 search"
+   - Difficulty: Hard
 
-### 2. OpenAPI Validator  
-- Checks OpenAPI 3.0/3.1 specification compliance
-- Validates required fields (openapi, info, paths)
-- Detects invalid field values and empty paths
+## 🔍 Validation & Grading Pipeline
 
-### 3. Authentication Validator
-- Verifies security schemes in components section
-- Detects unprotected endpoints
-- Validates security scheme types (apiKey, http, oauth2, openIdConnect)
+The environment uses a comprehensive multi-component grading system:
 
-### 4. Best Practices Checker
-- Validates HTTP method correctness (GET for retrieval, POST for creation)
-- Checks naming conventions (lowercase paths, camelCase parameters)
-- Verifies operation documentation completeness
-- Ensures API versioning strategy
+### 1. Contract Suite Grader
+- Generates contract expectations from baseline v1 schema
+- Tests for missing operations, response field regressions, auth regressions
+- Returns contract pass rate [0.0, 1.0]
+
+### 2. Breaking Change Detector
+- Detects breaking changes between schema versions
+- Identifies removed paths, operations, fields, type changes
+- Calculates breaking change penalty
+
+### 3. Ticket Satisfaction Grader
+- Evaluates schema against ticket acceptance criteria
+- Different logic for additive, security, compliance, deprecation tickets
+- Returns satisfaction score [0.0, 1.0]
+
+### 4. Schema Validators
+- JSON syntax validation
+- OpenAPI 3.0/3.1 specification compliance
+- Authentication and security validation
+- Best practices checking
 
 ## 📊 Performance Targets & Baseline Scores
 
@@ -296,60 +272,48 @@ The environment uses a comprehensive 4-stage validation pipeline:
 - **Step latency**: <500ms (validation + reward calculation)  
 - **State latency**: <50ms (state retrieval)
 - **Concurrent agents**: 10+ simultaneous training sessions
-- **Episode length**: Up to 10 iterations per episode
+- **Episode length**: Up to 15 iterations per episode
 
-### Baseline Performance Metrics
-Based on the included inference script using Qwen2.5-72B-Instruct:
+### Expected Reward Ranges
+- **No changes** (baseline schema): 0.45-0.55 reward
+- **Ticket partially satisfied**: 0.55-0.70 reward
+- **Ticket satisfied, no breaking changes**: 0.70-0.85 reward
+- **All tickets completed, high contract rate**: 0.85-1.0 reward
 
-**Task Success Rates (Pass Thresholds):**
-- Basic API Structure (≥0.6): ~85% success rate
-- Security & Authentication (≥0.7): ~60% success rate  
-- Advanced Best Practices (≥0.8): ~35% success rate
-
-**Expected Reward Ranges:**
-- Minimal schema (empty paths): 0.1-0.3 reward
-- Basic compliant schema: 0.4-0.6 reward
-- Well-designed schema: 0.7-0.9 reward
-- Exceptional schema: 0.9-1.0 reward
-
-**Baseline Episode Metrics:**
-- Average episode length: 4-6 steps
-- Average final score: 0.45-0.65 (normalized)
-- Success threshold: ≥0.7 normalized score
-- Typical reward progression: 0.2 → 0.4 → 0.6 → 0.8
+### Episode Termination
+Episode ends when either:
+- All tickets satisfied AND contract pass rate ≥ 95%, OR
+- Maximum 15 iterations reached
 
 ## 🏗️ Architecture
 
-```mermaid
-graph TB
-    subgraph Client["Client Layer"]
-        Agent["RL Agent"]
-        Client["APIEnvClient"]
-    end
-    
-    subgraph Server["Server Layer"]
-        App["FastAPI App"]
-        Env["APIEnvironment"]
-    end
-    
-    subgraph Validation["Validation Pipeline"]
-        Parser["JSON Parser"]
-        OpenAPI["OpenAPI Validator"]
-        Auth["Auth Validator"]
-        BP["Best Practices Checker"]
-    end
-    
-    Agent -->|APIAction| Client
-    Client -->|WebSocket| App
-    App -->|delegate| Env
-    Env -->|validate| Parser
-    Parser --> OpenAPI
-    OpenAPI --> Auth
-    Auth --> BP
-    BP -->|ValidationResult| Env
-    Env -->|APIObservation| App
-    App -->|response| Client
-    Client -->|feedback| Agent
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Client Layer                            │
+│  ┌──────────────┐              ┌──────────────────────┐    │
+│  │  RL Agent    │──────────────│ MigrationEnvClient   │    │
+│  └──────────────┘              └──────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           │ WebSocket/HTTP
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      Server Layer                            │
+│  ┌──────────────┐              ┌──────────────────────┐    │
+│  │ FastAPI App  │──────────────│ MigrationEnvironment │    │
+│  └──────────────┘              └──────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   Grading Pipeline                           │
+│  ┌──────────────────┐  ┌──────────────────────────┐        │
+│  │ Contract Grader  │  │ Breaking Change Detector │        │
+│  └──────────────────┘  └──────────────────────────┘        │
+│  ┌──────────────────┐  ┌──────────────────────────┐        │
+│  │ Ticket Grader    │  │ Validation Pipeline      │        │
+│  └──────────────────┘  └──────────────────────────┘        │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## 🚀 Deployment
@@ -359,8 +323,11 @@ graph TB
 Deploy directly to Hugging Face Spaces:
 
 ```bash
-openenv push --repo-id your-username/api-conformance-gym
+# Push to HF Spaces
+git push https://huggingface.co/spaces/your-username/api-lifecycle-migration main
 ```
+
+The environment will automatically start on port 7860 (HF Spaces default).
 
 ### Local Development
 
@@ -369,59 +336,55 @@ openenv push --repo-id your-username/api-conformance-gym
 uv sync
 
 # Run server
-uvicorn server.app:app --reload --host 0.0.0.0 --port 8000
+python start_server.py
+
+# Or use uvicorn directly
+uvicorn server.app:app --host 0.0.0.0 --port 7860
 
 # Test with client
-python -c "
-from api_conformance_gym import APIEnvClient, APIAction
-import json
-import asyncio
-
-async def test():
-    async with APIEnvClient(base_url='http://localhost:8000') as env:
-        result = await env.reset()
-        print(f'Task: {result.observation.business_requirement}')
-        
-        schema = {'openapi': '3.0.0', 'info': {'title': 'Test', 'version': '1.0.0'}, 'paths': {}}
-        action = APIAction(schema_json=json.dumps(schema))
-        result = await env.step(action)
-        print(f'Reward: {result.reward}')
-
-asyncio.run(test())
-"
+python debug_client.py
 ```
 
 ## 📁 Project Structure
 
 ```
-api_conformance_gym/
-├── README.md                    # This documentation
-├── openenv.yaml                 # Environment manifest
-├── inference.py                 # Hackathon baseline script
-├── models.py                    # Data models (Action, Observation, State)
-├── client.py                    # APIEnvClient for agent interaction
+api_lifecycle_migration/
+├── README.md                           # This documentation
+├── openenv.yaml                        # Environment manifest
+├── Dockerfile                          # Container definition
+├── inference.py                        # Hackathon baseline script
+├── migration_models.py                 # Data models (Action, Observation, Tickets)
+├── client.py                           # MigrationEnvClient for agent interaction
 ├── server/
-│   ├── api_conformance_gym_environment.py  # Core environment logic
-│   ├── app.py                   # FastAPI web interface
-│   ├── validators.py            # 4-stage validation pipeline
-│   ├── reward.py                # Reward calculation
-│   ├── graders.py               # Task grading system
-│   ├── requirements.txt         # Python dependencies
-│   └── Dockerfile               # Container definition
-└── tests/                       # Test suite (property-based + unit tests)
+│   ├── migration_environment.py        # Core environment logic
+│   ├── app.py                          # FastAPI web interface
+│   ├── contract_grader.py              # Contract suite generation & testing
+│   ├── breaking_change_detector.py     # Breaking change detection
+│   ├── ticket_grader.py                # Ticket satisfaction scoring
+│   ├── ticket_progression.py           # Ticket queue management
+│   ├── validators.py                   # 4-stage validation pipeline
+│   ├── reward.py                       # Reward calculation
+│   └── requirements.txt                # Python dependencies
+└── tests/                              # Comprehensive test suite
 ```
 
 ## 🤝 Contributing
 
-This environment was built for the 2026 Meta PyTorch Hackathon. The codebase follows OpenEnv standards and includes comprehensive testing with property-based tests using Hypothesis.
+This environment was built for the 2026 Meta PyTorch Hackathon. The codebase follows OpenEnv standards and includes comprehensive testing.
 
 Key design principles:
 - **Server-side reward calculation** prevents reward hacking
-- **Multi-turn episodes** allow iterative schema improvement  
-- **Real-world business requirements** ensure practical relevance
-- **Comprehensive validation** teaches industry best practices
+- **Multi-turn episodes** allow iterative schema evolution
+- **Contract-based testing** ensures backward compatibility
+- **Progressive tickets** enable long-horizon planning
 - **Deterministic grading** enables fair hackathon evaluation
 
 ## 📄 License
 
 Copyright (c) Meta Platforms, Inc. and affiliates. Licensed under the BSD-style license.
+
+## 🔗 Links
+
+- [OpenEnv Documentation](https://github.com/meta-pytorch/OpenEnv)
+- [OpenAPI Specification](https://spec.openapis.org/oas/v3.1.0)
+- [Meta PyTorch Hackathon 2026](https://pytorch.org/hackathon)

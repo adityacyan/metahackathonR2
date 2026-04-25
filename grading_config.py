@@ -93,12 +93,8 @@ def create_environment_with_config(environment: str = None, env_type: str = "api
     Returns:
         Configured environment instance (APIEnvironment or MigrationEnvironment)
     """
-    if env_type == "migration":
-        from server.migration_environment import MigrationEnvironment
-        env_class = MigrationEnvironment
-    else:
-        from server.api_conformance_gym_environment import APIEnvironment
-        env_class = APIEnvironment
+    from server.migration_environment import MigrationEnvironment
+    env_class = MigrationEnvironment
     
     config = get_grading_config(environment)
     config.update(override_kwargs)

@@ -1,8 +1,13 @@
-FROM python:3.11
+FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PIP_NO_CACHE_DIR=1
+
+# Runtime env vars with defaults (override via docker run -e or HF Space secrets)
+ENV PORT=7860
+ENV HOST=0.0.0.0
+ENV ENVIRONMENT=production
 
 WORKDIR /app
 
@@ -14,9 +19,10 @@ RUN python -m pip install --upgrade pip && \
 # Copy project source.
 COPY . /app
 
-EXPOSE 8000
+# HF Spaces requires port 7860
+EXPOSE 7860
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/docs', timeout=3)"
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7860/docs', timeout=5)" || exit 1
 
-CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn server.app:app --host 0.0.0.0 --port 7860"]

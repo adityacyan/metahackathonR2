@@ -1,94 +1,50 @@
 #!/usr/bin/env python3
-"""
-Debug script to check what the client actually receives from reset() and step().
-"""
+"""Debug script to check what the client receives from reset() and step()."""
 
 import asyncio
 import json
 import sys
 import os
 
-# Add current directory to Python path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 
-from client import APIEnvClient
-from models import APIAction
+from client import MigrationEnvClient
+from migration_models import MigrationAction
+
 
 async def debug_client():
-    """Debug the client responses."""
-    print("Debug: Testing client responses")
-    print("=" * 40)
-    
-    try:
-        client = APIEnvClient(base_url="http://localhost:8000")
-        print("✓ Connected to server")
-        
-        # Test reset
-        print("\n1. Testing reset()...")
-        try:
-            reset_result = await client.reset()
-            print(f"   Type: {type(reset_result)}")
-            print(f"   Attributes: {dir(reset_result)}")
-            
-            if hasattr(reset_result, 'observation'):
-                print(f"   Has observation: {type(reset_result.observation)}")
-                print(f"   Observation attributes: {dir(reset_result.observation)}")
-                if hasattr(reset_result.observation, 'business_requirement'):
-                    print(f"   Business requirement: {reset_result.observation.business_requirement[:50]}...")
-            
-            if hasattr(reset_result, 'reward'):
-                print(f"   Has reward: {reset_result.reward}")
-            
-            if hasattr(reset_result, 'done'):
-                print(f"   Has done: {reset_result.done}")
-                
-        except Exception as e:
-            print(f"   ✗ Reset failed: {e}")
-            import traceback
-            traceback.print_exc()
-            return
-        
-        # Test step
-        print("\n2. Testing step()...")
-        try:
-            minimal_schema = {
-                "openapi": "3.0.0",
-                "info": {"title": "Test API", "version": "1.0.0"},
-                "paths": {}
-            }
-            
-            action = APIAction(schema_json=json.dumps(minimal_schema), iteration=1)
-            step_result = await client.step(action)
-            
-            print(f"   Type: {type(step_result)}")
-            print(f"   Attributes: {dir(step_result)}")
-            
-            if hasattr(step_result, 'observation'):
-                print(f"   Has observation: {type(step_result.observation)}")
-                print(f"   Error count: {step_result.observation.error_count}")
-            
-            if hasattr(step_result, 'reward'):
-                print(f"   Has reward: {step_result.reward}")
-            
-            if hasattr(step_result, 'done'):
-                print(f"   Has done: {step_result.done}")
-                
-        except Exception as e:
-            print(f"   ✗ Step failed: {e}")
-            import traceback
-            traceback.print_exc()
-        
-        await client.close()
-        
-    except Exception as e:
-        print(f"✗ Connection failed: {e}")
-        print("Make sure server is running: python start_server.py")
+    port = int(os.getenv("PORT", 7860))
+    base_url = os.getenv("ENV_SERVER_URL", f"http://localhost:{port}")
+    print(f"Connecting to {base_url}")
 
-def main():
-    """Main function."""
-    asyncio.run(debug_client())
+    try:
+        client = MigrationEnvClient(base_url=base_url)
+
+        print("\n1. Testing reset()...")
+        reset_result = await client.reset()
+        obs = reset_result.observation
+        print(f"   active_ticket: {obs.active_ticket.title if obs.active_ticket else None}")
+        print(f"   tickets: {obs.tickets_completed}/{obs.total_tickets}")
+        print(f"   contract_pass_rate: {obs.contract_test_report.contract_pass_rate}")
+
+        print("\n2. Testing step()...")
+        baseline = json.loads(obs.baseline_schema_json)
+        action = MigrationAction(schema_json=json.dumps(baseline), iteration=1)
+        step_result = await client.step(action)
+        print(f"   reward: {step_result.reward}")
+        print(f"   done: {step_result.done}")
+        print(f"   ticket_score: {step_result.observation.ticket_satisfaction_score}")
+
+        await client.close()
+        print("\nDone.")
+    except Exception as e:
+        print(f"Error: {e}")
+        import traceback
+        traceback.print_exc()
+        print(f"\nMake sure server is running: python start_server.py")
+
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(debug_client())

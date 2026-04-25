@@ -1,4 +1,4 @@
-FROM python:3.11
+FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -6,17 +6,30 @@ ENV PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
 
-# Install dependencies first for better Docker layer caching.
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
 COPY server/requirements.txt /tmp/requirements.txt
+
+# Install Python dependencies
 RUN python -m pip install --upgrade pip && \
     pip install -r /tmp/requirements.txt
 
-# Copy project source.
+# Copy all source code
 COPY . /app
 
-EXPOSE 8000
+# Set Python path to include current directory
+ENV PYTHONPATH=/app
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/docs', timeout=3)"
+# HF Spaces uses port 7860
+EXPOSE 7860
 
-CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Simple healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:7860/docs || exit 1
+
+# Start the server with better error handling
+CMD ["python", "startup.py"]

@@ -20,14 +20,15 @@ import random
 from typing import Dict, Any
 
 try:
-    from api_conformance_gym import APIEnvClient, APIAction
+    from api_conformance_gym import MigrationEnvClient as APIEnvClient
+    from api_conformance_gym.migration_models import MigrationAction as APIAction
 except ImportError:
     import sys
     import os
 
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from client import APIEnvClient
-    from models import APIAction
+    from client import MigrationEnvClient as APIEnvClient
+    from migration_models import MigrationAction as APIAction
 
 
 class SimpleAPIAgent:
@@ -288,13 +289,12 @@ async def main():
 
     # Try to connect to environment
     try:
-        # First try connecting to existing server
-        env = APIEnvClient(base_url="http://localhost:8000")
-        print(" Connected to existing server at localhost:8000")
+        env = APIEnvClient(base_url="http://localhost:7860")
+        print(" Connected to existing server at localhost:7860")
     except Exception:
-        print("  Could not connect to localhost:8000")
+        print("  Could not connect to localhost:7860")
         print("   Please start the environment server first:")
-        print("   uvicorn server.app:app --host 0.0.0.0 --port 8000")
+        print("   uvicorn server.app:app --host 0.0.0.0 --port 7860")
         return
 
     agent = SimpleAPIAgent()
