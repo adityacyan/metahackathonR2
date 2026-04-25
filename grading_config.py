@@ -82,17 +82,23 @@ def get_grading_config(environment: str = None) -> Dict[str, Any]:
     
     return config
 
-def create_environment_with_config(environment: str = None, **override_kwargs):
-    """Create APIEnvironment with specified configuration.
+def create_environment_with_config(environment: str = None, env_type: str = "api", **override_kwargs):
+    """Create environment with specified configuration.
     
     Args:
-        environment: Environment name for configuration
+        environment: Environment name for configuration ("development", "production", "hackathon")
+        env_type: Environment type ("api" or "migration")
         **override_kwargs: Additional overrides for configuration
     
     Returns:
-        Configured APIEnvironment instance
+        Configured environment instance (APIEnvironment or MigrationEnvironment)
     """
-    from server.api_conformance_gym_environment import APIEnvironment
+    if env_type == "migration":
+        from server.migration_environment import MigrationEnvironment
+        env_class = MigrationEnvironment
+    else:
+        from server.api_conformance_gym_environment import APIEnvironment
+        env_class = APIEnvironment
     
     config = get_grading_config(environment)
     config.update(override_kwargs)
@@ -105,20 +111,47 @@ def create_environment_with_config(environment: str = None, **override_kwargs):
         "fallback_to_rule_based": config["fallback_to_rule_based"],
     }
     
-    return APIEnvironment(
+    return env_class(
         use_llm_grading=config["use_llm_grading"],
         **llm_config
     )
 
 # Quick access functions
-def create_development_env(**kwargs):
-    """Create environment configured for development."""
-    return create_environment_with_config("development", **kwargs)
+def create_development_env(env_type: str = "api", **kwargs):
+    """Create environment configured for development.
+    
+    Args:
+        env_type: Environment type ("api" or "migration")
+        **kwargs: Additional configuration overrides
+    """
+    return create_environment_with_config("development", env_type=env_type, **kwargs)
 
-def create_production_env(**kwargs):
-    """Create environment configured for production."""
-    return create_environment_with_config("production", **kwargs)
+def create_production_env(env_type: str = "api", **kwargs):
+    """Create environment configured for production.
+    
+    Args:
+        env_type: Environment type ("api" or "migration")
+        **kwargs: Additional configuration overrides
+    """
+    return create_environment_with_config("production", env_type=env_type, **kwargs)
 
-def create_hackathon_env(**kwargs):
-    """Create environment configured for hackathon."""
-    return create_environment_with_config("hackathon", **kwargs)
+def create_hackathon_env(env_type: str = "api", **kwargs):
+    """Create environment configured for hackathon.
+    
+    Args:
+        env_type: Environment type ("api" or "migration")
+        **kwargs: Additional configuration overrides
+    """
+    return create_environment_with_config("hackathon", env_type=env_type, **kwargs)
+
+def create_migration_env(environment: str = None, **kwargs):
+    """Create MigrationEnvironment with specified configuration.
+    
+    Args:
+        environment: Environment name for configuration
+        **kwargs: Additional configuration overrides
+    
+    Returns:
+        Configured MigrationEnvironment instance
+    """
+    return create_environment_with_config(environment, env_type="migration", **kwargs)

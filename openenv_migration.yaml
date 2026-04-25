@@ -1,0 +1,130 @@
+spec_version: 1
+name: api_lifecycle_migration
+type: space
+runtime: fastapi
+app: server.migration_app:app
+port: 8001
+
+# Environment metadata
+description: "API Lifecycle Migration - Train RL agents on API evolution
+  scenarios with backward compatibility preservation"
+version: "1.0.0"
+author: "Meta PyTorch Hackathon 2026"
+tags:
+  [
+    "api-evolution",
+    "migration",
+    "backward-compatibility",
+    "breaking-changes",
+    "rl-training",
+    "hackathon",
+  ]
+
+# OpenEnv compatibility
+openenv_version: ">=0.2.0"
+
+# Performance characteristics
+performance:
+  reset_latency_ms: 100
+  step_latency_ms: 500
+  state_latency_ms: 50
+  max_concurrent_agents: 10
+  max_episode_length: 15
+
+# Action and observation spaces
+action_space:
+  type: "object"
+  properties:
+    schema_json:
+      type: "string"
+      description: "JSON-stringified evolved OpenAPI 3.0/3.1 schema"
+    migration_notes:
+      type: "string"
+      description: "Optional agent notes about migration strategy"
+    iteration:
+      type: "integer"
+      minimum: 0
+      description: "Current iteration number"
+
+observation_space:
+  type: "object"
+  properties:
+    baseline_schema_json:
+      type: "string"
+      description: "Original v1 schema to maintain compatibility with"
+    active_ticket:
+      type: "object"
+      description: "Current migration ticket with acceptance criteria"
+    contract_test_report:
+      type: "object"
+      description: "Backward compatibility test results"
+    breaking_change_report:
+      type: "object"
+      description: "Breaking changes detected between schema versions"
+    ticket_satisfaction_score:
+      type: "number"
+      minimum: 0.0
+      maximum: 1.0
+      description: "Score for current ticket satisfaction"
+    tickets_completed:
+      type: "integer"
+      minimum: 0
+      description: "Number of tickets completed"
+    total_tickets:
+      type: "integer"
+      minimum: 0
+      description: "Total number of tickets in queue"
+    validation_errors:
+      type: "array"
+      description: "Schema validation errors"
+    error_count:
+      type: "integer"
+      minimum: 0
+      description: "Total validation error count"
+    validity_score:
+      type: "number"
+      minimum: 0.0
+      maximum: 1.0
+      description: "OpenAPI specification compliance score"
+    best_practices_score:
+      type: "number"
+      minimum: 0.0
+      maximum: 1.0
+      description: "API design best practices score"
+    schema_feedback:
+      type: "string"
+      description: "Human-readable feedback summary"
+    iteration:
+      type: "integer"
+      minimum: 0
+      description: "Current iteration number"
+    episode_info:
+      type: "object"
+      description: "Episode metadata and statistics"
+    episode_done:
+      type: "boolean"
+      description: "Whether the episode is complete"
+
+# Reward function
+reward:
+  formula: "R = 0.45*C + 0.25*T + 0.20*Q + 0.10*P - B - K"
+  range: (0.0, 1.0)
+  description: "Multi-component reward where C is contract preservation, T is
+    ticket satisfaction, Q is schema quality, P is progress delta, B is breaking
+    penalty, and K is behavior penalty"
+
+# Real-world utility
+utility:
+  domain: "API Evolution & Lifecycle Management"
+  real_world_tasks:
+    - "Evolving library management API with new features"
+    - "Adding security enhancements to existing APIs"
+    - "Improving API documentation and compliance"
+    - "Managing API deprecation and versioning"
+    - "Maintaining backward compatibility during evolution"
+  learning_objectives:
+    - "Backward compatibility preservation"
+    - "Breaking change detection and management"
+    - "Progressive API evolution strategies"
+    - "Contract-based testing principles"
+    - "API versioning best practices"

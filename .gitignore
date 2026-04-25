@@ -22,3 +22,4 @@ test_llm_grading.py
 test_setup.py
 testmodelinference.py
 testmodelinference.py
+test*
