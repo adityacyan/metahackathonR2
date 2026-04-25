@@ -1,6 +1,7 @@
 """
 FastAPI application for the API Lifecycle Migration Environment.
 """
+
 import sys
 import os
 import uvicorn
@@ -51,7 +52,7 @@ def main():
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=7860)
     args = parser.parse_args()
-    
+
     uvicorn.run(app, host=args.host, port=args.port)
 
 
