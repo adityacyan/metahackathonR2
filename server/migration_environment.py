@@ -237,6 +237,7 @@ class MigrationEnvironment(APIEnvironment):
         self._previous_schema: Optional[Dict[str, Any]] = None
         self._previous_contract_rate: float = 0.0
         self._previous_ticket_score: float = 0.0
+        self._previous_quality_score: float = 0.0
 
     def reset(self, seed: Optional[int] = None) -> MigrationObservation:
         """
@@ -298,6 +299,7 @@ class MigrationEnvironment(APIEnvironment):
         self._previous_schema = self._baseline_schema.copy()
         self._previous_contract_rate = 1.0
         self._previous_ticket_score = 0.0
+        self._previous_quality_score = 0.0
 
         # Initialize parent state
         self._current_state = None
@@ -479,10 +481,20 @@ class MigrationEnvironment(APIEnvironment):
                 ticket_score = 1.0
 
             # Step 5: Calculate progress delta
+            current_quality_score = (
+                0.55 * validation_result.validity_score
+                + 0.45 * validation_result.best_practices_score
+            )
             previous_combined = (
-                self._previous_contract_rate + self._previous_ticket_score
-            ) / 2
-            current_combined = (contract_result.contract_pass_rate + ticket_score) / 2
+                self._previous_contract_rate
+                + self._previous_ticket_score
+                + self._previous_quality_score
+            ) / 3
+            current_combined = (
+                contract_result.contract_pass_rate
+                + ticket_score
+                + current_quality_score
+            ) / 3
             progress_delta = max(0.0, current_combined - previous_combined)
 
             # Step 6: Calculate behavior penalties
@@ -505,6 +517,7 @@ class MigrationEnvironment(APIEnvironment):
             self._previous_schema = current_schema
             self._previous_contract_rate = contract_result.contract_pass_rate
             self._previous_ticket_score = ticket_score
+            self._previous_quality_score = current_quality_score
 
             # Step 9: Check ticket completion and advance
             ticket_advanced = self._ticket_progression.check_and_advance(ticket_score)
@@ -624,13 +637,16 @@ class MigrationEnvironment(APIEnvironment):
         """
         penalty = 0.0
 
-        # Penalize repeated schema submissions
+        # Penalize repeated schema submissions, but keep shaping smooth enough for RL.
         if self._previous_schema and current_schema == self._previous_schema:
-            penalty += 0.10
+            penalty += 0.03
 
         # Penalize no progress after iteration 2
         if iteration > 2 and progress_delta < 0.01:
-            penalty += 0.05
+            penalty += 0.02
+
+        # Safety cap so penalties do not dominate all positive signal.
+        penalty = min(0.15, penalty)
 
         return penalty
 

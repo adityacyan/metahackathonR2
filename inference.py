@@ -6,6 +6,7 @@ import inspect
 import json
 import math
 import os
+import re
 import sys
 import textwrap
 from datetime import datetime
@@ -28,6 +29,11 @@ if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 
 from migration_models import MigrationAction, MigrationObservation
+from training.reliability import (
+    strict_extract_json_object,
+    repair_extract_json_object,
+    canonicalize_json_object,
+)
 
 try:
     from client import MigrationEnvClient
@@ -106,6 +112,23 @@ def _extract_json_content(text: str) -> str:
         if in_block:
             json_lines.append(line)
     return "\n".join(json_lines).strip()
+
+
+def _normalize_json_output_strict(text: str) -> Optional[str]:
+    """Strict parse path for production success metric."""
+    diag = strict_extract_json_object((text or "").strip())
+    if not diag.strict_ok or not isinstance(diag.parsed_obj, dict):
+        return None
+    return canonicalize_json_object(diag.parsed_obj)
+
+
+def _normalize_json_output_repair(text: str) -> Optional[str]:
+    """Permissive fallback parser (used only after strict parse fails)."""
+    payload = _extract_json_content(text)
+    obj = repair_extract_json_object(payload)
+    if not isinstance(obj, dict):
+        return None
+    return canonicalize_json_object(obj)
 
 
 def log_start(task: str, env: str, model: str) -> None:
@@ -293,21 +316,39 @@ def get_model_response(
 
     user_prompt = build_user_prompt(obs, step)
     try:
-        completion = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=TEMPERATURE,
-            max_tokens=MAX_TOKENS,
-        )
-        response = _extract_json_content(completion.choices[0].message.content or "")
-        json.loads(response)
-        return response, "llm"
+        # Retry once with stricter decoding if the first output is not parseable JSON.
+        for attempt in range(2):
+            request_kwargs = dict(
+                model=MODEL_NAME,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=(TEMPERATURE if attempt == 0 else 0.0),
+                max_tokens=MAX_TOKENS,
+            )
+            try:
+                # OpenAI-compatible endpoints that support this enforce JSON object output.
+                completion = client.chat.completions.create(
+                    **request_kwargs, response_format={"type": "json_object"}
+                )
+            except Exception:
+                # Some routers do not support response_format; retry without it.
+                completion = client.chat.completions.create(**request_kwargs)
+            content = completion.choices[0].message.content or ""
+            normalized = _normalize_json_output_strict(content)
+            if normalized is not None:
+                return normalized, "llm"
+
+            # Repair is allowed only in controlled production fallback.
+            repaired = _normalize_json_output_repair(content)
+            if repaired is not None:
+                return repaired, "llm-repair-fallback"
     except Exception as exc:
         print(f"[DEBUG] Model request failed: {exc}", flush=True)
         return _apply_ticket_heuristics(current_schema_json, obs), "heuristic-fallback"
+
+    return _apply_ticket_heuristics(current_schema_json, obs), "heuristic-fallback"
 
 
 async def _maybe_await(value: Any) -> Any:

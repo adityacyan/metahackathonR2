@@ -22,4 +22,17 @@ test_llm_grading.py
 test_setup.py
 testmodelinference.py
 testmodelinference.py
-test*
+test_*
+.copilot-specs-cache/
+training-cn
+OpenEnv_gpt_oss_(20B)_Reinforcement_Learning_2048_Game.ipynb
+# Ignore throwaway summary markdown notes
+*summary*.md
+*_SUMMARY.md
+
+TASK_*
+
+.hf_space_payload
+TASK_8_IMPLEMENTATION_SUMMARY.md
+
+

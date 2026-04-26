@@ -43,13 +43,9 @@ class BreakingChangeDetector:
     """
 
     VALID_HTTP_METHODS = ["get", "post", "put", "patch", "delete"]
-    
-    # Severity weights for penalty calculation (cached as class constant)
-    SEVERITY_WEIGHTS = {
-        "critical": 0.10,
-        "major": 0.05,
-        "minor": 0.02,
-    }
+    # Reward shaping penalty: 0.05 per breaking change, capped to avoid domination.
+    BREAKING_CHANGE_PENALTY_PER_CHANGE = 0.05
+    BREAKING_CHANGE_PENALTY_CAP = 0.50
 
     def detect_breaking_changes(
         self, prev_schema: Dict[str, Any], current_schema: Dict[str, Any]
@@ -309,25 +305,19 @@ class BreakingChangeDetector:
         return fields
 
     def _calculate_penalty(self, breaking_changes: List[BreakingChange]) -> float:
-        """Calculate penalty based on breaking changes severity and count.
+        """Calculate penalty based on breaking changes count.
 
-        Penalty formula:
-        - Critical changes: 0.10 each
-        - Major changes: 0.05 each
-        - Minor changes: 0.02 each
-        - Capped at 0.5 maximum
+        Reward spec:
+        - 0.05 per breaking change
+        - capped at 0.15
 
         Args:
             breaking_changes: List of detected breaking changes
 
         Returns:
-            Calculated penalty value (0.0 to 0.5)
+            Calculated penalty value (0.0 to 0.15)
         """
-        total_penalty = 0.0
-
-        for change in breaking_changes:
-            weight = self.SEVERITY_WEIGHTS.get(change.severity, 0.02)
-            total_penalty += weight
-
-        # Cap penalty at 0.5
-        return min(0.5, total_penalty)
+        total_penalty = (
+            len(breaking_changes) * self.BREAKING_CHANGE_PENALTY_PER_CHANGE
+        )
+        return min(self.BREAKING_CHANGE_PENALTY_CAP, total_penalty)

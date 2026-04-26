@@ -143,7 +143,12 @@ Clamp to [0,1].
 Behavior penalties:
 - repeated schema: +0.10
 - no progress (P < 0.01 after step 2): +0.05
-- mass deletion heuristic (large drop in op count): +0.10+
+- mass deletion heuristic:
+  - if operation count drops by >= 20% vs previous step, add `0.10 + 0.50*(drop_ratio-0.20)` capped at +0.30
+
+Penalty caps (for stability):
+- breaking_penalty: 0.05 per breaking change, capped at 0.50
+- behavior_penalty: capped at 0.25
 
 ---
 

@@ -159,6 +159,13 @@ class MigrationRewardCalculator:
         Returns:
             Final reward clamped to [0.0, 1.0]
         """
+        # Clamp inputs for numerical stability.
+        contract_pass_rate = max(0.0, min(1.0, contract_pass_rate))
+        ticket_score = max(0.0, min(1.0, ticket_score))
+        validity_score = max(0.0, min(1.0, validity_score))
+        best_practices_score = max(0.0, min(1.0, best_practices_score))
+        progress_delta = max(0.0, min(1.0, progress_delta))
+
         # Calculate quality score from validity and best practices
         quality_score = (
             MigrationRewardCalculator.QUALITY_VALIDITY_WEIGHT * validity_score
@@ -174,7 +181,10 @@ class MigrationRewardCalculator:
         )
 
         # Subtract penalties (Requirement 4.5)
-        reward = reward - breaking_penalty - behavior_penalty
+        # Cap penalties to avoid fully saturating reward at zero for most steps.
+        capped_breaking_penalty = min(0.25, max(0.0, breaking_penalty))
+        capped_behavior_penalty = min(0.15, max(0.0, behavior_penalty))
+        reward = reward - capped_breaking_penalty - capped_behavior_penalty
 
         # Clamp to valid range (Requirement 4.6)
         reward = max(0.0, min(1.0, reward))
